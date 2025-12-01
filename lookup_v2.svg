@@ -1,0 +1,25 @@
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+  <g id="find_001">
+    <circle cx="10" cy="10" r="8" fill="red" />
+    <rect x="15" y="5" width="10" height="10" fill="blue" />
+  </g>
+  <g id="replace_001">
+    <polygon points="10,5 15,15 5,15" fill="orange" />
+  </g>
+  
+  <g id="find_002" transform="rotate(45)">
+    <rect x="0" y="0" width="20" height="5" fill="green" />
+    <circle cx="10" cy="15" r="5" fill="yellow" />
+  </g>
+  <g id="replace_002">
+    <ellipse cx="10" cy="10" rx="12" ry="8" fill="cyan" />
+  </g>
+  
+  <g id="find_003">
+    <line x1="0" y1="0" x2="20" y2="20" stroke="black" stroke-width="2" />
+    <circle cx="5" cy="5" r="3" fill="purple" />
+  </g>
+  <g id="replace_003">
+    <text x="5" y="15" font-size="12" fill="brown">Replaced</text>
+  </g>
+</svg>

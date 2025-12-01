@@ -1,14 +1,482 @@
-<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
-  <g id="group1" transform="translate(20,20)">
-    <circle cx="10" cy="10" r="8" fill="red" />
-    <rect x="15" y="5" width="10" height="10" fill="blue" />
-  </g>
-  <g id="group2" transform="translate(50,50)">
-    <rect x="0" y="0" width="20" height="5" fill="green" />
-    <circle cx="10" cy="15" r="5" fill="yellow" />
-  </g>
-  <g id="group3" transform="translate(100,30)">
-    <line x1="0" y1="0" x2="20" y2="20" stroke="black" stroke-width="2" />
-    <circle cx="5" cy="5" r="3" fill="purple" />
-  </g>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 150 150"
+   version="1.1"
+   stroke-linecap="round"
+   stroke-linejoin="round"
+   fill-rule="evenodd"
+   xml:space="preserve"
+   id="svg89"
+   sodipodi:docname="Input_v2.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><sodipodi:namedview
+   id="namedview89"
+   pagecolor="#ffffff"
+   bordercolor="#000000"
+   borderopacity="0.25"
+   inkscape:showpageshadow="2"
+   inkscape:pageopacity="0.0"
+   inkscape:pagecheckerboard="0"
+   inkscape:deskcolor="#d1d1d1"
+   showgrid="false"
+   inkscape:zoom="4.1533333"
+   inkscape:cx="75"
+   inkscape:cy="75"
+   inkscape:window-width="1680"
+   inkscape:window-height="979"
+   inkscape:window-x="-8"
+   inkscape:window-y="-8"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="svg89" />
+<defs
+   id="defs1">
+<clipPath
+   id="clipId0">
+<path
+   d="M0,150 150,150 150,0 0,0 z"
+   id="path1" />
+</clipPath>
+</defs>
+<g
+   clip-path="url(#clipId0)"
+   fill="none"
+   stroke="rgb(0,0,0)"
+   stroke-width="0.3"
+   id="g1" />
+<g
+   clip-path="url(#clipId0)"
+   fill="rgb(255,255,255)"
+   stroke="rgb(255,255,255)"
+   stroke-width="0.75"
+   id="g2">
+<polygon
+   points="31.5457,48.3916 37.9035,48.3916 37.9035,54.7495 31.5457,54.7495 "
+   id="polygon1" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="none"
+   stroke="rgb(38,0,0)"
+   stroke-width="0.75"
+   id="g5">
+<polyline
+   points="31.5457,48.3916 37.9035,48.3916 "
+   id="polyline2" />
+<polyline
+   points="37.9035,48.3916 37.9035,54.7495 "
+   id="polyline3" />
+<polyline
+   points="37.9035,54.7495 31.5457,54.7495 "
+   id="polyline4" />
+<polyline
+   points="31.5457,54.7495 31.5457,48.3916 "
+   id="polyline5" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="rgb(0,38,28)"
+   stroke="rgb(0,38,28)"
+   stroke-width="3"
+   id="g48">
+<path
+   d="M31.5457,54.7495 31.5457,48.3916 31.9591,54.7495 z"
+   id="path5" />
+<path
+   d="M31.9591,49.3188 31.5457,48.3916 31.9591,48.3916 z"
+   id="path6" />
+<path
+   d="M31.9591,54.7495 31.9591,50.6434 32.7378,54.7495 z"
+   id="path7" />
+<path
+   d="M32.7378,54.7495 31.9591,50.6434 32.7378,50.6434 z"
+   id="path8" />
+<path
+   d="M31.9591,49.3188 31.9591,48.3916 32.7378,49.3188 z"
+   id="path9" />
+<path
+   d="M32.7378,49.3188 31.9591,48.3916 32.7378,48.3916 z"
+   id="path10" />
+<path
+   d="M32.7378,54.7495 32.7378,50.6434 33.482,54.7495 z"
+   id="path11" />
+<path
+   d="M33.482,54.7495 32.7378,50.6434 33.482,51.2417 z"
+   id="path12" />
+<path
+   d="M32.7378,49.3188 32.7378,48.3916 33.482,48.7205 z"
+   id="path13" />
+<path
+   d="M33.482,48.7205 32.7378,48.3916 33.482,48.3916 z"
+   id="path14" />
+<path
+   d="M33.482,48.7205 33.482,48.3916 33.946,54.7495 z"
+   id="path15" />
+<path
+   d="M33.946,50.9083 33.482,48.3916 33.946,48.3916 z"
+   id="path16" />
+<path
+   d="M33.946,54.7495 33.946,52.2328 34.7246,54.7495 z"
+   id="path17" />
+<path
+   d="M34.7246,54.7495 33.946,52.2328 34.7246,52.2328 z"
+   id="path18" />
+<path
+   d="M33.946,50.9083 33.946,48.3916 34.7246,50.9083 z"
+   id="path19" />
+<path
+   d="M34.7246,50.9083 33.946,48.3916 34.7246,48.3916 z"
+   id="path20" />
+<path
+   d="M34.7246,54.7495 34.7246,52.2328 35.4688,54.7495 z"
+   id="path21" />
+<path
+   d="M35.4688,54.7495 34.7246,52.2328 35.4688,52.8312 z"
+   id="path22" />
+<path
+   d="M34.7246,50.9083 34.7246,48.3916 35.4688,50.3099 z"
+   id="path23" />
+<path
+   d="M35.4688,50.3099 34.7246,48.3916 35.4688,48.3916 z"
+   id="path24" />
+<path
+   d="M35.4688,50.3099 35.4688,48.3916 35.9328,54.7495 z"
+   id="path25" />
+<path
+   d="M35.9328,52.4978 35.4688,48.3916 35.9328,48.3916 z"
+   id="path26" />
+<path
+   d="M35.9328,54.7495 35.9328,53.8223 36.7114,54.7495 z"
+   id="path27" />
+<path
+   d="M36.7114,54.7495 35.9328,53.8223 36.7114,53.8223 z"
+   id="path28" />
+<path
+   d="M35.9328,52.4978 35.9328,48.3916 36.7114,52.4978 z"
+   id="path29" />
+<path
+   d="M36.7114,52.4978 35.9328,48.3916 36.7114,48.3916 z"
+   id="path30" />
+<path
+   d="M36.7114,54.7495 36.7114,53.8223 37.4557,54.7495 z"
+   id="path31" />
+<path
+   d="M37.4557,54.7495 36.7114,53.8223 37.4557,54.4207 z"
+   id="path32" />
+<path
+   d="M36.7114,52.4978 36.7114,48.3916 37.4557,51.8994 z"
+   id="path33" />
+<path
+   d="M37.4557,51.8994 36.7114,48.3916 37.4557,48.3916 z"
+   id="path34" />
+<path
+   d="M37.4557,51.8994 37.4557,48.3916 37.9035,54.7495 z"
+   id="path35" />
+<path
+   d="M37.9035,54.7495 37.4557,48.3916 37.9035,48.3916 z"
+   id="path36" />
+<path
+   d="M31.9591,54.7495 31.5457,48.3916 31.9591,50.6434 z"
+   id="path37" />
+<path
+   d="M31.9591,50.6434 31.5457,48.3916 31.9591,49.3188 z"
+   id="path38" />
+<path
+   d="M33.482,54.7495 33.482,51.2417 33.946,54.7495 z"
+   id="path39" />
+<path
+   d="M33.482,51.2417 33.482,48.7205 33.946,54.7495 z"
+   id="path40" />
+<path
+   d="M33.946,54.7495 33.482,48.3916 33.946,52.2328 z"
+   id="path41" />
+<path
+   d="M33.946,52.2328 33.482,48.3916 33.946,50.9083 z"
+   id="path42" />
+<path
+   d="M35.4688,54.7495 35.4688,52.8312 35.9328,54.7495 z"
+   id="path43" />
+<path
+   d="M35.4688,52.8312 35.4688,50.3099 35.9328,54.7495 z"
+   id="path44" />
+<path
+   d="M35.9328,54.7495 35.4688,48.3916 35.9328,53.8223 z"
+   id="path45" />
+<path
+   d="M35.9328,53.8223 35.4688,48.3916 35.9328,52.4978 z"
+   id="path46" />
+<path
+   d="M37.4557,54.7495 37.4557,54.4207 37.9035,54.7495 z"
+   id="path47" />
+<path
+   d="M37.4557,54.4207 37.4557,51.8994 37.9035,54.7495 z"
+   id="path48" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="none"
+   stroke="rgb(127,255,255)"
+   stroke-width="0.75"
+   id="g51">
+<polyline
+   points="31.5457,54.7495 37.9035,54.7495 37.9035,48.3916 31.5457,48.3916 31.5457,54.7495 "
+   id="polyline48" />
+<polyline
+   points="33.946,50.9083 33.946,52.2328 34.7246,52.2328 35.4688,52.8312 35.4688,50.3099 34.7246,50.9083 33.946,50.9083 "
+   id="polyline49" />
+<polyline
+   points="31.9591,49.3188 31.9591,50.6434 32.7378,50.6434 33.482,51.2417 33.482,48.7205 32.7378,49.3188 31.9591,49.3188 "
+   id="polyline50" />
+<polyline
+   points="35.9328,52.4978 35.9328,53.8223 36.7114,53.8223 37.4557,54.4207 37.4557,51.8994 36.7114,52.4978 35.9328,52.4978 "
+   id="polyline51" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="rgb(255,255,255)"
+   stroke="rgb(255,255,255)"
+   stroke-width="0.75"
+   id="g52">
+<polygon
+   points="38.1292,85.4724 38.1292,79.1145 44.487,79.1145 44.487,85.4724 "
+   id="polygon51" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="none"
+   stroke="rgb(38,0,0)"
+   stroke-width="0.75"
+   id="g55">
+<polyline
+   points="38.1292,85.4724 38.1292,79.1145 "
+   id="polyline52" />
+<polyline
+   points="38.1292,79.1145 44.487,79.1145 "
+   id="polyline53" />
+<polyline
+   points="44.487,79.1145 44.487,85.4724 "
+   id="polyline54" />
+<polyline
+   points="44.487,85.4724 38.1292,85.4724 "
+   id="polyline55" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="rgb(0,38,28)"
+   stroke="rgb(0,38,28)"
+   stroke-width="3"
+   id="g56">
+<path
+   d="M38.1292,85.4724 38.1292,79.1145 44.487,85.4724 z"
+   id="path55" />
+<path
+   d="M44.487,85.4724 38.1292,79.1145 44.487,79.1145 z"
+   id="path56" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="none"
+   stroke="rgb(127,255,255)"
+   stroke-width="0.75"
+   id="g57">
+<polyline
+   points="38.1292,85.4724 44.487,85.4724 44.487,79.1145 38.1292,79.1145 38.1292,85.4724 "
+   id="polyline56" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="rgb(127,255,255)"
+   stroke="rgb(127,255,255)"
+   stroke-width="0.05"
+   id="g58">
+<text
+   transform="matrix(1.80223 0 -0 2.00248 39.4198 83.2947)"
+   font-family="Arial,'sans-serif'"
+   font-size="1.397"
+   id="text57">MP</text>
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="rgb(255,0,0)"
+   stroke="rgb(255,0,0)"
+   stroke-width="0.05"
+   id="g59">
+<text
+   transform="matrix(1.20149 0 -0 1.50186 33.0885 85.5576)"
+   font-family="Arial,'sans-serif'"
+   font-size="1.397"
+   id="text58">MP3</text>
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="rgb(255,255,255)"
+   stroke="rgb(255,255,255)"
+   stroke-width="0.75"
+   id="g60">
+<polygon
+   points="63.1722,85.8597 63.1722,79.5018 69.5301,79.5018 69.5301,85.8597 "
+   id="polygon59" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="none"
+   stroke="rgb(38,0,0)"
+   stroke-width="0.75"
+   id="g63">
+<polyline
+   points="63.1722,85.8597 63.1722,79.5018 "
+   id="polyline60" />
+<polyline
+   points="63.1722,79.5018 69.5301,79.5018 "
+   id="polyline61" />
+<polyline
+   points="69.5301,79.5018 69.5301,85.8597 "
+   id="polyline62" />
+<polyline
+   points="69.5301,85.8597 63.1722,85.8597 "
+   id="polyline63" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="rgb(0,38,28)"
+   stroke="rgb(0,38,28)"
+   stroke-width="3"
+   id="g64">
+<path
+   d="M63.1722,85.8597 63.1722,79.5018 69.5301,85.8597 z"
+   id="path63" />
+<path
+   d="M69.5301,85.8597 63.1722,79.5018 69.5301,79.5018 z"
+   id="path64" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="none"
+   stroke="rgb(127,255,255)"
+   stroke-width="0.75"
+   id="g65">
+<polyline
+   points="63.1722,85.8597 69.5301,85.8597 69.5301,79.5018 63.1722,79.5018 63.1722,85.8597 "
+   id="polyline64" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="rgb(127,255,255)"
+   stroke="rgb(127,255,255)"
+   stroke-width="0.05"
+   id="g66">
+<text
+   transform="matrix(1.80223 0 -0 2.00248 64.1131 83.682)"
+   font-family="Arial,'sans-serif'"
+   font-size="1.397"
+   id="text65">MIX</text>
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="rgb(255,255,255)"
+   stroke="rgb(255,255,255)"
+   stroke-width="0.75"
+   id="g67">
+<polygon
+   points="61.6231,47.8753 67.981,47.8753 67.981,54.2332 61.6231,54.2332 "
+   id="polygon66" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="none"
+   stroke="rgb(38,0,0)"
+   stroke-width="0.75"
+   id="g70">
+<polyline
+   points="61.6231,47.8753 67.981,47.8753 "
+   id="polyline67" />
+<polyline
+   points="67.981,47.8753 67.981,54.2332 "
+   id="polyline68" />
+<polyline
+   points="67.981,54.2332 61.6231,54.2332 "
+   id="polyline69" />
+<polyline
+   points="61.6231,54.2332 61.6231,47.8753 "
+   id="polyline70" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="rgb(19,0,38)"
+   stroke="rgb(19,0,38)"
+   stroke-width="3"
+   id="g87">
+<path
+   d="M61.6231,54.2332 61.6231,47.8753 62.5768,54.2332 z"
+   id="path70" />
+<path
+   d="M62.5768,49.7826 61.6231,47.8753 62.5768,47.8753 z"
+   id="path71" />
+<path
+   d="M62.5768,54.2332 62.5768,52.3258 65.12,54.2332 z"
+   id="path72" />
+<path
+   d="M65.12,54.2332 62.5768,52.3258 65.12,52.3258 z"
+   id="path73" />
+<path
+   d="M62.5768,49.7826 62.5768,47.8753 65.12,49.7826 z"
+   id="path74" />
+<path
+   d="M65.12,49.7826 62.5768,47.8753 65.12,47.8753 z"
+   id="path75" />
+<path
+   d="M65.12,52.3258 65.12,51.0542 67.0273,54.2332 z"
+   id="path76" />
+<path
+   d="M67.0273,54.2332 65.12,51.0542 67.0273,52.3258 z"
+   id="path77" />
+<path
+   d="M65.12,49.7826 65.12,47.8753 67.0273,49.7826 z"
+   id="path78" />
+<path
+   d="M67.0273,49.7826 65.12,47.8753 67.0273,47.8753 z"
+   id="path79" />
+<path
+   d="M67.0273,49.7826 67.0273,47.8753 67.981,54.2332 z"
+   id="path80" />
+<path
+   d="M67.981,54.2332 67.0273,47.8753 67.981,47.8753 z"
+   id="path81" />
+<path
+   d="M62.5768,54.2332 61.6231,47.8753 62.5768,52.3258 z"
+   id="path82" />
+<path
+   d="M62.5768,52.3258 61.6231,47.8753 62.5768,49.7826 z"
+   id="path83" />
+<path
+   d="M65.12,54.2332 65.12,52.3258 67.0273,54.2332 z"
+   id="path84" />
+<path
+   d="M65.12,51.0542 65.12,49.7826 67.0273,49.7826 z"
+   id="path85" />
+<path
+   d="M67.0273,54.2332 67.0273,52.3258 67.981,54.2332 z"
+   id="path86" />
+<path
+   d="M67.0273,52.3258 67.0273,49.7826 67.981,54.2332 z"
+   id="path87" />
+</g>
+<g
+   clip-path="url(#clipId0)"
+   fill="none"
+   stroke="rgb(223,127,255)"
+   stroke-width="0.75"
+   id="g89">
+<polyline
+   points="62.5768,52.3258 65.12,52.3258 65.12,49.7826 62.5768,49.7826 62.5768,52.3258 "
+   id="polyline87" />
+<polyline
+   points="65.12,51.0542 67.0273,49.7826 67.0273,52.3258 65.12,51.0542 "
+   id="polyline88" />
+<polyline
+   points="61.6231,54.2332 67.981,54.2332 67.981,47.8753 61.6231,47.8753 61.6231,54.2332 "
+   id="polyline89" />
+</g>
 </svg>
