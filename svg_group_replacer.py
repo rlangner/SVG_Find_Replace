@@ -305,59 +305,27 @@ def set_element_transform(element, rotation, tx, ty):
 def find_matching_groups(input_groups, lookup_groups, replace_groups):
     """Find matching groups between input and lookup SVGs."""
     matches = []
-    used_lookup_indices = set()  # Track which lookup groups have been used to avoid duplicate matches
+    used_input_indices = set()  # Track which input groups have been used to avoid duplicate matches
     
-    for input_idx, input_group in enumerate(input_groups):
-        # Get transform info for the input group
-        input_rotation, input_tx, input_ty = get_element_transform(input_group)
+    for lookup_idx, (lookup_id, lookup_group) in enumerate(lookup_groups):
+        # Extract all subgroups from the lookup group
+        lookup_subgroups = []
+        for elem in lookup_group:
+            if (elem.tag.endswith('}g') or elem.tag == 'g') and not elem.get('id', '').startswith(('find_', 'replace_')):
+                lookup_subgroups.append(elem)
         
-        # Create a temporary group without transform for visual matching
-        temp_input_group = ET.fromstring(ET.tostring(input_group))
-        if 'transform' in temp_input_group.attrib:
-            del temp_input_group.attrib['transform']
+        if not lookup_subgroups:
+            continue  # Skip if lookup group has no subgroups to match
         
-        input_svg_str = ET.tostring(temp_input_group, encoding='unicode')
-        input_bitmap = svg_to_bitmap(input_svg_str)
+        # Create a signature for the lookup group based on its subgroups
+        lookup_signature = create_group_signature(lookup_subgroups)
         
-        best_match = None
-        best_score = 0
-        best_rotation = 0
+        # Find clusters of input groups that match this lookup group
+        matched_clusters = find_matching_clusters(input_groups, used_input_indices, lookup_signature, lookup_subgroups)
         
-        # Try different rotations for the lookup groups to match rotated input
-        for angle in [0, 90, 180, 270]:
-            if angle != 0:
-                rotated_input_bitmap = rotate_image(input_bitmap, angle)
-            else:
-                rotated_input_bitmap = input_bitmap
-            
-            for lookup_idx, (lookup_id, lookup_group) in enumerate(lookup_groups):
-                if lookup_idx in used_lookup_indices:  # Skip already used lookup groups
-                    continue
-                
-                # Create a temporary lookup group without transform for visual matching
-                temp_lookup_group = ET.fromstring(ET.tostring(lookup_group))
-                if 'transform' in temp_lookup_group.attrib:
-                    del temp_lookup_group.attrib['transform']
-                
-                lookup_svg_str = ET.tostring(temp_lookup_group, encoding='unicode')
-                lookup_bitmap = svg_to_bitmap(lookup_svg_str)
-                
-                score = compare_images(rotated_input_bitmap, lookup_bitmap)
-                
-                if score > best_score and score > 0.3:  # Lowered threshold for visual match
-                    best_score = score
-                    best_match = lookup_idx
-                    best_rotation = -angle  # Negative because we're compensating for rotation
-        
-        if best_match is not None:
-            # Mark this lookup group as used to prevent duplicate matches
-            used_lookup_indices.add(best_match)
-            
-            # Find corresponding replace group
-            lookup_id = lookup_groups[best_match][0]  # The ID of the matched find_ group
-            find_num = lookup_id.split('_')[-1]  # Extract the 3-digit number
-            
+        for cluster in matched_clusters:
             # Find the corresponding replace group
+            find_num = lookup_id.split('_')[-1]  # Extract the 3-digit number
             replace_group = None
             replace_id = f"replace_{find_num}"
             for rep_id, rep_group in replace_groups:
@@ -365,20 +333,100 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
                     replace_group = rep_group
                     break
             
-            if replace_group is not None:
-                # Apply compensation for the rotation that was detected
-                final_rotation = input_rotation + best_rotation
+            if replace_group is not None and cluster:
+                # Use the transform of the first matched group as reference
+                first_input_idx = cluster[0]
+                first_input_group = input_groups[first_input_idx]
+                input_rotation, input_tx, input_ty = get_element_transform(first_input_group)
                 
                 matches.append({
-                    'input_idx': input_idx,
-                    'lookup_idx': best_match,
+                    'input_indices': cluster,  # Multiple input indices
+                    'lookup_idx': lookup_idx,
                     'replace_group': replace_group,
-                    'rotation': final_rotation,
+                    'rotation': input_rotation,
                     'tx': input_tx,
                     'ty': input_ty
                 })
+                
+                # Mark these input groups as used
+                for idx in cluster:
+                    used_input_indices.add(idx)
     
     return matches
+
+def create_group_signature(groups):
+    """Create a signature for a group based on its subgroups."""
+    signatures = []
+    for group in groups:
+        sig = get_geometric_signature(group)
+        if sig:
+            signatures.append(sig)
+    # Sort to make order-independent
+    signatures.sort()
+    return tuple(signatures)
+
+def find_matching_clusters(input_groups, used_input_indices, lookup_signature, lookup_subgroups):
+    """Find clusters of input groups that match the lookup group structure."""
+    clusters = []
+    
+    # Try different combinations of unused input groups
+    unused_indices = [i for i in range(len(input_groups)) if i not in used_input_indices]
+    
+    # For now, let's try matching individual groups first, then expand to clusters
+    for i in unused_indices:
+        if i in used_input_indices:
+            continue
+            
+        input_group = input_groups[i]
+        input_sig = get_geometric_signature(input_group)
+        
+        # Check if this single input group matches any of the lookup subgroups
+        for j, lookup_subgroup in enumerate(lookup_subgroups):
+            lookup_sub_sig = get_geometric_signature(lookup_subgroup)
+            
+            if input_sig and lookup_sub_sig and compare_signatures(input_sig, lookup_sub_sig):
+                # Found a potential match, now look for other groups that might be part of the same cluster
+                cluster = [i]
+                
+                # Try to find other groups that are close in position to form a cluster
+                input_rotation, input_tx, input_ty = get_element_transform(input_group)
+                
+                # Look for nearby groups that might be part of the same pattern
+                for k in unused_indices:
+                    if k == i or k in used_input_indices or k in cluster:
+                        continue
+                    
+                    other_group = input_groups[k]
+                    other_rotation, other_tx, other_ty = get_element_transform(other_group)
+                    
+                    # Check if this group is close in position (within a tolerance)
+                    if abs(other_tx - input_tx) < 50 and abs(other_ty - input_ty) < 50:
+                        # Check if this group matches one of the remaining lookup subgroups
+                        other_sig = get_geometric_signature(other_group)
+                        if other_sig:
+                            remaining_lookup_sigs = [get_geometric_signature(ls) for ls in lookup_subgroups if ls != lookup_subgroup]
+                            for remaining_sig in remaining_lookup_sigs:
+                                if remaining_sig and compare_signatures(other_sig, remaining_sig):
+                                    cluster.append(k)
+                                    break
+                
+                # Check if this cluster matches the full lookup signature
+                cluster_groups = [input_groups[idx] for idx in cluster]
+                cluster_signature = create_group_signature(cluster_groups)
+                
+                if compare_signatures(cluster_signature, lookup_signature):
+                    clusters.append(cluster)
+                    break  # Move to next unused index
+    
+    return clusters
+
+def compare_signatures(sig1, sig2):
+    """Compare two signatures for similarity."""
+    if sig1 == sig2:
+        return True
+    
+    # For more complex comparison, use the geometric similarity function
+    return calculate_geometric_similarity(sig1, sig2) > 0.8
 
 
 def remove_groups_at_same_position(input_root, input_groups, matched_indices):
@@ -405,59 +453,21 @@ def remove_groups_at_same_position(input_root, input_groups, matched_indices):
         input_root.remove(input_groups[idx])
 
 
-def extract_subgroups_from_large_groups(svg_root, min_elements=2):
-    """Extract smaller subgroups from large groups in the input SVG that might match find_ patterns."""
-    subgroups = []
+def extract_input_groups(svg_root):
+    """Extract all groups from the input SVG that could potentially match lookup patterns."""
+    input_groups = []
     
-    # Look for large groups that might contain smaller patterns
-    for elem in svg_root:
-        if elem.tag.endswith('g'):
+    # Find all groups that are not lookup patterns
+    for elem in svg_root.iter():
+        if elem.tag.endswith('}g') or elem.tag == 'g':
             # Skip if this is a lookup pattern group
             elem_id = elem.get('id', '')
             if elem_id.startswith(('find_', 'replace_')):
                 continue
-                
-            # If this group has many children, extract potential subgroups
-            children = list(elem)
-            if len(children) > min_elements:
-                # Group children by similar characteristics to form subgroups
-                current_subgroup = []
-                current_type = None
-                
-                for child in children:
-                    # Group consecutive elements of the same type
-                    child_type = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-                    child_points = child.get('points', '') if child.tag.endswith('polyline') or child.tag.endswith('polygon') else None
-                    
-                    # Create a simple signature for grouping
-                    signature = (child_type, child_points[:20] if child_points else '')  # First 20 chars of points as signature
-                    
-                    if current_type is None or signature[0] == current_type[0]:
-                        # Same or similar type, add to current subgroup
-                        current_subgroup.append(child)
-                        current_type = signature
-                    else:
-                        # Different type, save current subgroup and start new one
-                        if len(current_subgroup) >= min_elements:
-                            # Create a temporary group element with these children
-                            subgroup_elem = ET.Element('g')
-                            for item in current_subgroup:
-                                subgroup_elem.append(item)
-                            subgroups.append(subgroup_elem)
-                        current_subgroup = [child]
-                        current_type = signature
-                
-                # Add the last subgroup if it has enough elements
-                if len(current_subgroup) >= min_elements:
-                    subgroup_elem = ET.Element('g')
-                    for item in current_subgroup:
-                        subgroup_elem.append(item)
-                    subgroups.append(subgroup_elem)
-            else:
-                # Add the group as-is if it has few children
-                subgroups.append(elem)
+            # Add this group to our list
+            input_groups.append(elem)
     
-    return subgroups
+    return input_groups
 
 
 def main(input_svg_path, lookup_svg_path, output_svg_path):
@@ -466,8 +476,8 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
     input_tree = ET.parse(input_svg_path)
     input_root = input_tree.getroot()
     
-    # Extract meaningful subgroups from the input SVG
-    input_groups = extract_subgroups_from_large_groups(input_root)
+    # Extract all groups from the input SVG
+    input_groups = extract_input_groups(input_root)
     
     # Parse lookup SVG
     lookup_tree = ET.parse(lookup_svg_path)
@@ -477,7 +487,7 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
     lookup_groups = []
     replace_groups = []
     
-    for elem in lookup_root:
+    for elem in lookup_root.iter():
         elem_id = elem.get('id', '')
         if elem_id.startswith('find_'):
             lookup_groups.append((elem_id, elem))
@@ -491,12 +501,9 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
     
     print(f"Found {len(matches)} matches")
     
-    # Since we're working with extracted subgroups, we need to modify the original structure
-    # For now, let's just replace the matched subgroups with the replacements
-    matched_elements_to_remove = []
-    
+    # For each match, remove the matched input groups and add the replacement groups
     for match in matches:
-        original_group = match.get('original_group')  # This is the matched subgroup
+        input_indices = match['input_indices']  # This is now a list of indices
         replace_group = match['replace_group']
         rotation = match['rotation']
         tx = match['tx']
@@ -509,20 +516,19 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
         # Add the new group to the root
         input_root.append(new_group)
         
-        # Mark the original elements for removal
-        if original_group is not None:
-            matched_elements_to_remove.append(original_group)
+        # Add the new group to the root
+        input_root.append(new_group)
     
-    # Remove matched elements from their parent groups
-    for original_group in matched_elements_to_remove:
-        # Find the parent of this original group in the original structure and remove these elements
+    # Remove matched input groups from the SVG
+    for match in reversed(matches):  # Reverse to maintain indices when removing
+        input_idx = match['input_idx']
+        original_group = input_groups[input_idx]
+        # Find and remove the original group from its parent
         for parent in input_root.iter():
-            # Remove each child of the matched group from the parent
-            for child in list(original_group):
-                for p_child in list(parent):
-                    if p_child == child:
-                        parent.remove(p_child)
-                        break
+            for child in list(parent):
+                if child == original_group:
+                    parent.remove(child)
+                    break
     
     # Write the output SVG
     # Pretty print the XML
