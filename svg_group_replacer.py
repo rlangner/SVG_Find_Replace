@@ -482,19 +482,65 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
     if ' xmlns=' not in rough_string:
         rough_string = rough_string.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"', 1)
     
-    # Pretty print using minidom
+    # Function to remove duplicate attributes from tags
+    import re
+    def remove_duplicate_attrs(match):
+        full_match = match.group(0)
+        tag_name = match.group(1)
+        attrs_part = match.group(2) if match.group(2) else ""
+        
+        # Check if the tag is self-closing (ends with />)
+        is_self_closing = full_match.endswith('/>')
+        
+        # Find all attributes with regex
+        attr_pattern = r"([a-zA-Z_:][a-zA-Z0-9_:.-]*)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')"
+        found_attrs = []
+        seen_attr_names = set()
+        
+        for attr_match in re.finditer(attr_pattern, attrs_part):
+            attr_name = attr_match.group(1)
+            attr_value = attr_match.group(2) or attr_match.group(3)  # Get value from double or single quotes
+            if attr_name not in seen_attr_names:
+                if attr_match.group(2):  # If it was in double quotes
+                    found_attrs.append(f'{attr_name}="{attr_value}"')
+                else:  # If it was in single quotes
+                    found_attrs.append(f"{attr_name}='{attr_value}'")
+                seen_attr_names.add(attr_name)
+        
+        # Return the tag with proper closing
+        attrs_str = " ".join(found_attrs)
+        if is_self_closing:
+            return f'<{tag_name} {attrs_str}/>'
+        else:
+            return f'<{tag_name} {attrs_str}>'
+    
+    # Apply to all tags (including self-closing ones) - use a pattern that handles both <tag> and <tag/>
+    rough_string = re.sub(r'<(\w+)([^>]*)/?>', remove_duplicate_attrs, rough_string)
+    
+    # Simple approach to output the SVG without complex processing that causes issues
     try:
-        reparsed = minidom.parseString(rough_string)
+        # Pretty print using minidom but without complex regex processing that causes malformed XML
+        reparsed = minidom.parseString(rough_string.encode('utf-8'))
         pretty_xml = reparsed.toprettyxml(indent="  ")
         
-        # Remove extra blank lines
+        # Remove extra blank lines and fix potential issues
         lines = [line for line in pretty_xml.split('\n') if line.strip()]
         pretty_xml = '\n'.join(lines)
+        
+        # Ensure proper SVG closing tag
+        if not pretty_xml.strip().endswith('</svg>'):
+            if '</svg>' not in pretty_xml:
+                # Add the closing tag if it's missing
+                pretty_xml = pretty_xml.rstrip() + '\n</svg>'
     except Exception as e:
         print(f"Error processing XML: {e}")
-        # If there's an error with minidom, just clean the rough string
+        # If there's an error, just clean the rough string
         lines = [line for line in rough_string.split('\n') if line.strip()]
         pretty_xml = '\n'.join(lines)
+        # Ensure proper closing tag
+        if not pretty_xml.strip().endswith('</svg>'):
+            if '</svg>' not in pretty_xml:
+                pretty_xml = pretty_xml.rstrip() + '\n</svg>'
     
     with open(output_svg_path, 'w') as f:
         f.write(pretty_xml)
