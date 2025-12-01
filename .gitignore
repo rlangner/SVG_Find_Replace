@@ -1,1 +1,4 @@
-Nothing to output - the file changes contain only a modified README.md file, which is a source/config file and should not be ignored.
+```
+# Generated based on file changes
+*.svg
+```

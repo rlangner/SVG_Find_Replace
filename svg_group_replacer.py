@@ -474,8 +474,8 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
     
     # Fix namespace issue
     import re
-    # Remove namespace prefixes
-    rough_string = re.sub(r'ns\d+:', '', rough_string)
+    # Remove namespace prefixes but avoid creating duplicate attributes
+    rough_string = re.sub(r'ns\d+:([a-zA-Z]+)', r'\1', rough_string)
     # Remove xmlns:ns0="..." and similar attributes
     rough_string = re.sub(r' xmlns:ns\d+="[^"]*"', '', rough_string)
     # Add proper xmlns attribute if not present
@@ -483,12 +483,18 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
         rough_string = rough_string.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"', 1)
     
     # Pretty print using minidom
-    reparsed = minidom.parseString(rough_string)
-    pretty_xml = reparsed.toprettyxml(indent="  ")
-    
-    # Remove extra blank lines
-    lines = [line for line in pretty_xml.split('\n') if line.strip()]
-    pretty_xml = '\n'.join(lines)
+    try:
+        reparsed = minidom.parseString(rough_string)
+        pretty_xml = reparsed.toprettyxml(indent="  ")
+        
+        # Remove extra blank lines
+        lines = [line for line in pretty_xml.split('\n') if line.strip()]
+        pretty_xml = '\n'.join(lines)
+    except Exception as e:
+        print(f"Error processing XML: {e}")
+        # If there's an error with minidom, just clean the rough string
+        lines = [line for line in rough_string.split('\n') if line.strip()]
+        pretty_xml = '\n'.join(lines)
     
     with open(output_svg_path, 'w') as f:
         f.write(pretty_xml)
