@@ -371,26 +371,9 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
 
 
 def remove_groups_at_same_position(input_root, input_groups, matched_indices):
-    """Remove groups that are at the same position as matched groups."""
-    # For each matched group, remove all groups at the same position
-    positions = []
-    for match_idx in matched_indices:
-        group = input_groups[match_idx]
-        _, tx, ty = get_element_transform(group)
-        positions.append((tx, ty))
-    
-    # Remove groups at these positions
-    groups_to_remove = []
-    for i, group in enumerate(input_groups):
-        if i not in matched_indices:  # Don't remove the matched groups themselves yet
-            _, tx, ty = get_element_transform(group)
-            for pos_tx, pos_ty in positions:
-                if abs(tx - pos_tx) < 1 and abs(ty - pos_ty) < 1:  # Position tolerance
-                    groups_to_remove.append(i)
-                    break
-    
-    # Remove from the tree (in reverse order to maintain indices)
-    for idx in sorted(groups_to_remove, reverse=True):
+    """Remove only the matched groups from the input root."""
+    # Remove the matched groups themselves (in reverse order to maintain indices)
+    for idx in sorted(matched_indices, reverse=True):
         input_root.remove(input_groups[idx])
 
 

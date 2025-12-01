@@ -1,3 +1,53 @@
 ```
-*.bak
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+*.out
+
+# Dependencies
+.venv/
+venv/
+node_modules/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Distribution / packaging
+dist/
+build/
+*.egg
+*.egg-info/
+*.whl
+
+# Python specific
+.pytest_cache/
+.mypy_cache/
+.tox/
+.coverage
+nosetests.xml
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Output files from the current project
+output.svg
 ```
