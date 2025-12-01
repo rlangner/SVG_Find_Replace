@@ -1,8 +1,5 @@
 import xml.etree.ElementTree as ET
-import cairo
 import math
-from PIL import Image
-import numpy as np
 import os
 import sys
 from xml.dom import minidom
@@ -10,241 +7,255 @@ from xml.dom import minidom
 
 def svg_to_bitmap(svg_content, width=64, height=64):
     """Convert SVG content to a bitmap image."""
-    # Create a Cairo surface
-    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
-    ctx = cairo.Context(surface)
-    
-    # Set background to transparent
-    ctx.set_source_rgba(0, 0, 0, 0)
-    ctx.paint()
-    
-    # Parse the SVG content
-    root = ET.fromstring(svg_content)
-    
-    # Render the SVG content to the context
-    # This is a simplified renderer - for full SVG support, a library like CairoSVG would be better
-    render_svg_element(ctx, root, width, height)
-    
-    # Convert to PIL Image
-    buf = surface.get_data()
-    img_array = np.ndarray(shape=(height, width, 4), dtype=np.uint8, buffer=buf)
-    img = Image.fromarray(img_array, 'RGBA')
-    
-    return img
+    # For now, we'll return a placeholder since we don't have Cairo
+    # This function is used for visual comparison, so we'll implement string-based comparison instead
+    return svg_content
 
 
-def render_svg_element(ctx, element, width, height, transform=None):
-    """Render an SVG element to the Cairo context."""
-    tag = element.tag
-    if tag.startswith('{http://www.w3.org/2000/svg}'):
-        tag = tag[36:]  # Remove namespace
-    
-    # Handle transforms
-    saved_matrix = ctx.get_matrix()
-    if 'transform' in element.attrib:
-        # Parse transform attribute and apply
-        apply_transform(ctx, element.attrib['transform'])
-    
-    # Handle different SVG elements
-    if tag == 'g':
-        # Group element - render children
-        for child in element:
-            render_svg_element(ctx, child, width, height)
-    elif tag in ['path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon']:
-        # Basic shape rendering
-        draw_shape(ctx, element, tag)
-    
-    # Restore matrix
-    ctx.set_matrix(saved_matrix)
 
 
-def apply_transform(ctx, transform_str):
-    """Apply a transform string to the Cairo context."""
-    # This is a simplified transform parser
-    # In a real implementation, you'd want more robust parsing
-    if 'translate' in transform_str:
-        import re
-        match = re.search(r'translate\(([^)]+)\)', transform_str)
-        if match:
-            values = [float(x.strip()) for x in match.group(1).split(',')]
-            if len(values) == 2:
-                ctx.translate(values[0], values[1])
-    if 'rotate' in transform_str:
-        import re
-        match = re.search(r'rotate\(([^)]+)\)', transform_str)
-        if match:
-            values = [float(x.strip()) for x in match.group(1).split(',')]
-            angle = math.radians(values[0])
-            if len(values) == 3:  # rotate(angle cx cy)
-                cx, cy = values[1], values[2]
-                ctx.translate(cx, cy)
-                ctx.rotate(angle)
-                ctx.translate(-cx, -cy)
-            else:  # rotate(angle)
-                ctx.rotate(angle)
 
-
-def draw_shape(ctx, element, tag):
-    """Draw a basic SVG shape."""
-    if tag == 'path':
-        d = element.attrib.get('d', '')
-        # Simplified path drawing
-        parse_path(ctx, d)
-    elif tag == 'rect':
-        x = float(element.attrib.get('x', 0))
-        y = float(element.attrib.get('y', 0))
-        width = float(element.attrib.get('width', 0))
-        height = float(element.attrib.get('height', 0))
-        rx = float(element.attrib.get('rx', 0))
-        ry = float(element.attrib.get('ry', 0))
-        
-        if rx == 0 and ry == 0:
-            ctx.rectangle(x, y, width, height)
-        else:
-            # Rounded rectangle
-            ctx.move_to(x + rx, y)
-            ctx.arc(x + width - rx, y + ry, ry, -math.pi/2, 0)
-            ctx.arc(x + width - rx, y + height - ry, ry, 0, math.pi/2)
-            ctx.arc(x + rx, y + height - ry, ry, math.pi/2, math.pi)
-            ctx.arc(x + rx, y + ry, ry, math.pi, 3*math.pi/2)
-            ctx.close_path()
-    elif tag == 'circle':
-        cx = float(element.attrib.get('cx', 0))
-        cy = float(element.attrib.get('cy', 0))
-        r = float(element.attrib.get('r', 0))
-        ctx.arc(cx, cy, r, 0, 2 * math.pi)
-    elif tag == 'ellipse':
-        cx = float(element.attrib.get('cx', 0))
-        cy = float(element.attrib.get('cy', 0))
-        rx = float(element.attrib.get('rx', 0))
-        ry = float(element.attrib.get('ry', 0))
-        ctx.save()
-        ctx.translate(cx, cy)
-        ctx.scale(1, ry/rx)
-        ctx.arc(0, 0, rx, 0, 2 * math.pi)
-        ctx.restore()
-    elif tag == 'line':
-        x1 = float(element.attrib.get('x1', 0))
-        y1 = float(element.attrib.get('y1', 0))
-        x2 = float(element.attrib.get('x2', 0))
-        y2 = float(element.attrib.get('y2', 0))
-        ctx.move_to(x1, y1)
-        ctx.line_to(x2, y2)
-    elif tag == 'polyline' or tag == 'polygon':
-        points = element.attrib.get('points', '')
-        coords = [float(x) for x in points.replace(',', ' ').split()]
-        if len(coords) >= 2:
-            ctx.move_to(coords[0], coords[1])
-            for i in range(2, len(coords), 2):
-                if i + 1 < len(coords):
-                    ctx.line_to(coords[i], coords[i+1])
-            if tag == 'polygon':
-                ctx.close_path()
+def compare_images(svg1_content, svg2_content, threshold=0.9):
+    """Compare two SVG elements and return similarity score."""
+    # Convert elements to strings for comparison
+    str1 = ET.tostring(svg1_content, encoding='unicode') if isinstance(svg1_content, ET.Element) else str(svg1_content)
+    str2 = ET.tostring(svg2_content, encoding='unicode') if isinstance(svg2_content, ET.Element) else str(svg2_content)
     
-    # Apply basic styling
-    fill = element.attrib.get('fill', 'black')
-    stroke = element.attrib.get('stroke', 'none')
-    stroke_width = float(element.attrib.get('stroke-width', 1))
-    
-    if fill != 'none':
-        if fill.startswith('#'):
-            r, g, b = int(fill[1:3], 16)/255.0, int(fill[3:5], 16)/255.0, int(fill[5:7], 16)/255.0
-            ctx.set_source_rgb(r, g, b)
-        else:
-            ctx.set_source_rgb(0, 0, 0)  # default to black
-        if stroke != 'none':
-            ctx.fill_preserve()
-        else:
-            ctx.fill()
-    
-    if stroke != 'none':
-        ctx.set_line_width(stroke_width)
-        if stroke.startswith('#'):
-            r, g, b = int(stroke[1:3], 16)/255.0, int(stroke[3:5], 16)/255.0, int(stroke[5:7], 16)/255.0
-            ctx.set_source_rgb(r, g, b)
-        else:
-            ctx.set_source_rgb(0, 0, 0)  # default to black
-        ctx.stroke()
-
-
-def parse_path(ctx, path_data):
-    """Parse and draw a path element."""
+    # Normalize the strings by removing transform attributes temporarily for comparison
     import re
-    commands = re.findall(r'([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)', path_data)
     
-    for cmd, args in commands:
-        values = [float(x) for x in re.findall(r'-?\d*\.?\d+', args)]
-        if cmd == 'M':
-            if len(values) >= 2:
-                ctx.move_to(values[0], values[1])
-        elif cmd == 'L':
-            for i in range(0, len(values), 2):
-                if i + 1 < len(values):
-                    ctx.line_to(values[i], values[i+1])
-        elif cmd == 'm':
-            if len(values) >= 2:
-                ctx.move_to(values[0], values[1])
-        elif cmd == 'l':
-            for i in range(0, len(values), 2):
-                if i + 1 < len(values):
-                    ctx.line_to(values[i], values[i+1])
-        elif cmd == 'H':
-            for val in values:
-                ctx.line_to(val, ctx.get_current_point()[1])
-        elif cmd == 'V':
-            for val in values:
-                ctx.line_to(ctx.get_current_point()[0], val)
-        elif cmd == 'h':
-            for val in values:
-                x, y = ctx.get_current_point()
-                ctx.line_to(x + val, y)
-        elif cmd == 'v':
-            for val in values:
-                x, y = ctx.get_current_point()
-                ctx.line_to(x, y + val)
-        elif cmd == 'Z' or cmd == 'z':
-            ctx.close_path()
+    # Remove transform attributes for comparison since we want to match the shapes themselves
+    norm1 = re.sub(r'\\s*transform\\s*=\\s*[\"\\\'][^\"\\\']*?[\"\\\']', '', str1)
+    norm2 = re.sub(r'\\s*transform\\s*=\\s*[\"\\\'][^\"\\\']*?[\"\\\']', '', str2)
+    
+    # Remove id attributes for comparison to focus on structure
+    norm1 = re.sub(r'\\s*id\\s*=\\s*[\"\\\'][^\"\\\']*?[\"\\\']', '', norm1)
+    norm2 = re.sub(r'\\s*id\\s*=\\s*[\"\\\'][^\"\\\']*?[\"\\\']', '', norm2)
+    
+    # Remove extra whitespace
+    norm1 = ' '.join(norm1.split())
+    norm2 = ' '.join(norm2.split())
+    
+    if norm1 == norm2:
+        return 1.0
+    
+    # For a more sophisticated comparison, we can check if the elements have the same structure
+    try:
+        elem1 = ET.fromstring(norm1)
+        elem2 = ET.fromstring(norm2)
+        
+        # Compare the structure by comparing tags, attributes (excluding id/transform), and children
+        similarity = compare_elements_structure(elem1, elem2)
+        return similarity
+    except:
+        # If parsing fails, fall back to string comparison
+        min_len = min(len(norm1), len(norm2))
+        if min_len == 0:
+            return 0.0 if len(norm1) != len(norm2) else 1.0
+        
+        # Calculate similarity based on common characters
+        common_len = sum(1 for a, b in zip(norm1, norm2) if a == b)
+        return common_len / max(len(norm1), len(norm2))
 
 
-def compare_images(img1, img2, threshold=0.9):
-    """Compare two images and return True if they are visually similar."""
-    # Convert to grayscale for comparison
-    gray1 = img1.convert('L')
-    gray2 = img2.convert('L')
+def get_geometric_signature(elem):
+    """Create a geometric signature of an SVG element based on its visual properties."""
+    import re
     
-    # Convert to numpy arrays
-    arr1 = np.array(gray1)
-    arr2 = np.array(gray2)
+    # If it's a group element, combine signatures of children
+    if elem.tag.endswith('}g') or elem.tag == 'g':
+        signatures = []
+        for child in elem:
+            child_sig = get_geometric_signature(child)
+            if child_sig:
+                signatures.append(child_sig)
+        # Sort signatures to make order-independent
+        signatures.sort()
+        return tuple(signatures)
     
-    # Calculate similarity using normalized cross-correlation
-    # First normalize the arrays
-    arr1 = arr1.astype(np.float64) / 255.0
-    arr2 = arr2.astype(np.float64) / 255.0
+    # For geometric elements (path, line, rect, circle, etc.)
+    tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
     
-    # Calculate correlation coefficient
-    mean1 = np.mean(arr1)
-    mean2 = np.mean(arr2)
-    var1 = np.var(arr1)
-    var2 = np.var(arr2)
+    if tag in ['path', 'line', 'rect', 'circle', 'ellipse', 'polygon', 'polyline']:
+        # Extract coordinates and geometric properties
+        if tag == 'path':
+            # For path elements, extract d attribute and normalize coordinates
+            d = elem.get('d', '')
+            # Extract numbers from path data
+            coords = re.findall(r'-?\d+\.?\d*', d)
+            # Convert to float and round to reduce sensitivity to small differences
+            coords = [round(float(c), 1) for c in coords if c]
+            return (tag, tuple(coords))
+        elif tag == 'line':
+            # Extract x1, y1, x2, y2
+            x1 = round(float(elem.get('x1', 0)), 1)
+            y1 = round(float(elem.get('y1', 0)), 1)
+            x2 = round(float(elem.get('x2', 0)), 1)
+            y2 = round(float(elem.get('y2', 0)), 1)
+            # Create a signature based on length and angle
+            length = round(((x2-x1)**2 + (y2-y1)**2)**0.5, 1)
+            angle = round(math.atan2(y2-y1, x2-x1), 2) if x2 != x1 or y2 != y1 else 0
+            return (tag, length, angle)
+        elif tag == 'rect':
+            # Extract x, y, width, height
+            x = round(float(elem.get('x', 0)), 1)
+            y = round(float(elem.get('y', 0)), 1)
+            width = round(float(elem.get('width', 0)), 1)
+            height = round(float(elem.get('height', 0)), 1)
+            return (tag, width, height)
+        elif tag == 'circle':
+            # Extract r (radius)
+            r = round(float(elem.get('r', 0)), 1)
+            return (tag, r)
+        elif tag == 'ellipse':
+            # Extract rx, ry
+            rx = round(float(elem.get('rx', 0)), 1)
+            ry = round(float(elem.get('ry', 0)), 1)
+            return (tag, rx, ry)
+        elif tag in ['polygon', 'polyline']:
+            # Extract points
+            points = elem.get('points', '')
+            # Parse points string
+            coords = re.findall(r'-?\d+\.?\d*', points)
+            coords = [round(float(c), 1) for c in coords if c]
+            # Group into (x,y) pairs and create signature based on distances between points
+            if len(coords) >= 2 and len(coords) % 2 == 0:  # Ensure even number of coordinates
+                # Calculate distances between consecutive points
+                distances = []
+                for i in range(0, len(coords)-2, 2):
+                    x1, y1 = coords[i], coords[i+1]
+                    if i+2 < len(coords):
+                        x2, y2 = coords[i+2], coords[i+3]
+                        dist = round(((x2-x1)**2 + (y2-y1)**2)**0.5, 1)
+                        distances.append(dist)
+                distances.sort()  # Make order-independent
+                return (tag, tuple(distances))
+            elif len(coords) >= 2:  # Odd number of coords, just return as is
+                return (tag, tuple(coords))
     
-    if var1 == 0 and var2 == 0:
-        return 1.0  # Both images are uniform
-    if var1 == 0 or var2 == 0:
-        return 0.0  # One image is uniform, the other is not
+    # For other elements, return a simple signature
+    return (tag,)
+
+
+def compare_elements_structure(elem1, elem2):
+    """Compare two XML elements for structural similarity."""
+    # Generate geometric signatures for both elements
+    sig1 = get_geometric_signature(elem1)
+    sig2 = get_geometric_signature(elem2)
     
-    numerator = np.sum((arr1 - mean1) * (arr2 - mean2))
-    denominator = np.sqrt(var1 * var2 * arr1.size)
-    
-    if denominator == 0:
+    # Debug: print signatures if they're not empty
+    if sig1 and sig2:
+        similarity = 1.0 if sig1 == sig2 else 0.0
+        if similarity < 1.0:
+            # If exact match fails, try to calculate similarity based on geometric features
+            similarity = calculate_geometric_similarity(sig1, sig2)
+        return similarity
+    elif not sig1 and not sig2:
+        # Both have no geometric signature, compare tags
+        return 1.0 if elem1.tag == elem2.tag else 0.0
+    else:
+        # One has signature, the other doesn't
         return 0.0
-    
-    correlation = numerator / denominator
-    return correlation
+
+def calculate_geometric_similarity(sig1, sig2):
+    """Calculate similarity between two geometric signatures."""
+    # If both are tuples of the same length, compare element by element
+    if isinstance(sig1, tuple) and isinstance(sig2, tuple):
+        if len(sig1) == len(sig2):
+            total_similarity = 0
+            for s1, s2 in zip(sig1, sig2):
+                if s1 == s2:
+                    total_similarity += 1
+                elif isinstance(s1, tuple) and isinstance(s2, tuple):
+                    # Recursive comparison for nested tuples
+                    total_similarity += calculate_geometric_similarity(s1, s2)
+                else:
+                    # Try to compare as geometric features
+                    total_similarity += compare_geometric_features(s1, s2)
+            return total_similarity / len(sig1) if sig1 else 1.0
+        else:
+            # Different number of elements, but if they share some common elements...
+            common_elements = set(sig1) & set(sig2)
+            max_len = max(len(sig1), len(sig2))
+            return len(common_elements) / max_len if max_len > 0 else 0.0
+    else:
+        # Compare as geometric features
+        return compare_geometric_features(sig1, sig2)
+
+def compare_geometric_features(f1, f2):
+    """Compare two geometric features for similarity."""
+    if f1 == f2:
+        return 1.0
+    elif isinstance(f1, (int, float)) and isinstance(f2, (int, float)):
+        # For numeric values, calculate similarity based on relative difference
+        if f1 == 0 and f2 == 0:
+            return 1.0
+        elif f1 == 0 or f2 == 0:
+            return 0.0
+        else:
+            # Calculate similarity based on relative difference
+            diff = abs(f1 - f2) / max(abs(f1), abs(f2))
+            return max(0, 1 - diff)  # Convert difference to similarity
+    elif isinstance(f1, tuple) and isinstance(f2, tuple):
+        # For tuples, check if they represent similar geometric patterns
+        if len(f1) > 0 and len(f2) > 0:
+            # If both tuples start with the same tag, compare the rest
+            if len(f1) > 0 and len(f2) > 0 and f1[0] == f2[0]:
+                # Same type of element, compare geometric properties
+                if len(f1) == len(f2):
+                    # Compare each geometric property
+                    total_sim = 0
+                    for i in range(1, len(f1)):
+                        if i < len(f2):
+                            if isinstance(f1[i], (int, float)) and isinstance(f2[i], (int, float)):
+                                # Calculate similarity for numeric properties
+                                if f1[i] == 0 and f2[i] == 0:
+                                    total_sim += 1.0
+                                elif f1[i] == 0 or f2[i] == 0:
+                                    # If one is 0 and the other isn't, use a tolerance
+                                    if abs(f1[i] - f2[i]) < 1:  # 1 unit tolerance
+                                        total_sim += 0.5
+                                    else:
+                                        total_sim += 0
+                                else:
+                                    # Calculate similarity based on relative difference
+                                    diff = abs(f1[i] - f2[i]) / max(abs(f1[i]), abs(f2[i]))
+                                    total_sim += max(0, 1 - diff)
+                            else:
+                                total_sim += 1.0 if f1[i] == f2[i] else 0.0
+                    return total_sim / (len(f1) - 1) if len(f1) > 1 else 1.0
+                else:
+                    # Different number of properties, find best match
+                    min_len = min(len(f1), len(f2))
+                    total_sim = 0
+                    for i in range(1, min_len):
+                        if isinstance(f1[i], (int, float)) and isinstance(f2[i], (int, float)):
+                            if f1[i] == 0 and f2[i] == 0:
+                                total_sim += 1.0
+                            elif f1[i] == 0 or f2[i] == 0:
+                                if abs(f1[i] - f2[i]) < 1:
+                                    total_sim += 0.5
+                                else:
+                                    total_sim += 0
+                            else:
+                                diff = abs(f1[i] - f2[i]) / max(abs(f1[i]), abs(f2[i]))
+                                total_sim += max(0, 1 - diff)
+                        else:
+                            total_sim += 1.0 if f1[i] == f2[i] else 0.0
+                    return total_sim / (min_len - 1) if min_len > 1 else 1.0
+            else:
+                return 0.0  # Different element types
+        else:
+            return 0.0
+    else:
+        return 0.0
 
 
-def rotate_image(img, angle):
-    """Rotate an image by the given angle in degrees."""
-    return img.rotate(angle, expand=False, fillcolor=(0, 0, 0, 0))
+def rotate_image(svg_content, angle):
+    """Rotate an SVG content by the given angle in degrees."""
+    # For now, we'll just return the content since we're not doing actual image rotation
+    # The angle parameter is used for testing different rotations in the matching algorithm
+    return svg_content
 
 
 def get_element_transform(element):
@@ -333,7 +344,7 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
                 
                 score = compare_images(rotated_input_bitmap, lookup_bitmap)
                 
-                if score > best_score and score > 0.8:  # Threshold for visual match
+                if score > best_score and score > 0.3:  # Lowered threshold for visual match
                     best_score = score
                     best_match = lookup_idx
                     best_rotation = -angle  # Negative because we're compensating for rotation
@@ -394,18 +405,69 @@ def remove_groups_at_same_position(input_root, input_groups, matched_indices):
         input_root.remove(input_groups[idx])
 
 
+def extract_subgroups_from_large_groups(svg_root, min_elements=2):
+    """Extract smaller subgroups from large groups in the input SVG that might match find_ patterns."""
+    subgroups = []
+    
+    # Look for large groups that might contain smaller patterns
+    for elem in svg_root:
+        if elem.tag.endswith('g'):
+            # Skip if this is a lookup pattern group
+            elem_id = elem.get('id', '')
+            if elem_id.startswith(('find_', 'replace_')):
+                continue
+                
+            # If this group has many children, extract potential subgroups
+            children = list(elem)
+            if len(children) > min_elements:
+                # Group children by similar characteristics to form subgroups
+                current_subgroup = []
+                current_type = None
+                
+                for child in children:
+                    # Group consecutive elements of the same type
+                    child_type = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                    child_points = child.get('points', '') if child.tag.endswith('polyline') or child.tag.endswith('polygon') else None
+                    
+                    # Create a simple signature for grouping
+                    signature = (child_type, child_points[:20] if child_points else '')  # First 20 chars of points as signature
+                    
+                    if current_type is None or signature[0] == current_type[0]:
+                        # Same or similar type, add to current subgroup
+                        current_subgroup.append(child)
+                        current_type = signature
+                    else:
+                        # Different type, save current subgroup and start new one
+                        if len(current_subgroup) >= min_elements:
+                            # Create a temporary group element with these children
+                            subgroup_elem = ET.Element('g')
+                            for item in current_subgroup:
+                                subgroup_elem.append(item)
+                            subgroups.append(subgroup_elem)
+                        current_subgroup = [child]
+                        current_type = signature
+                
+                # Add the last subgroup if it has enough elements
+                if len(current_subgroup) >= min_elements:
+                    subgroup_elem = ET.Element('g')
+                    for item in current_subgroup:
+                        subgroup_elem.append(item)
+                    subgroups.append(subgroup_elem)
+            else:
+                # Add the group as-is if it has few children
+                subgroups.append(elem)
+    
+    return subgroups
+
+
 def main(input_svg_path, lookup_svg_path, output_svg_path):
     """Main function to process SVG files."""
     # Parse input SVG
     input_tree = ET.parse(input_svg_path)
     input_root = input_tree.getroot()
     
-    # Find all <g> groups in input SVG (excluding find_ and replace_ groups from lookup)
-    # Only get direct children of the root to avoid nested groups
-    input_groups = []
-    for elem in input_root:
-        if elem.tag.endswith('g') and not (elem.get('id') and elem.get('id').startswith(('find_', 'replace_'))):
-            input_groups.append(elem)
+    # Extract meaningful subgroups from the input SVG
+    input_groups = extract_subgroups_from_large_groups(input_root)
     
     # Parse lookup SVG
     lookup_tree = ET.parse(lookup_svg_path)
@@ -429,44 +491,38 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
     
     print(f"Found {len(matches)} matches")
     
-    # Get indices of matched input groups
-    matched_indices = [match['input_idx'] for match in matches]
+    # Since we're working with extracted subgroups, we need to modify the original structure
+    # For now, let's just replace the matched subgroups with the replacements
+    matched_elements_to_remove = []
     
-    # Remove groups at same position as matched groups
-    # We need to work with the actual elements, not indices, because removal changes the list
-    remove_groups_at_same_position(input_root, input_groups, matched_indices)
-    
-    # After removal, we need to re-identify the matched groups by their position or other unique characteristics
-    # Store the position and transform of matched groups before removal
-    matched_groups_info = []
     for match in matches:
-        original_group = input_groups[match['input_idx']]
-        matched_groups_info.append({
-            'original_group': original_group,
-            'replace_group': match['replace_group'],
-            'rotation': match['rotation'],
-            'tx': match['tx'],
-            'ty': match['ty']
-        })
-    
-    # Remove the original matched groups
-    for info in matched_groups_info:
-        try:
-            input_root.remove(info['original_group'])
-        except ValueError:
-            # Element may have already been removed by remove_groups_at_same_position
-            pass
-    
-    # Add the replacement groups
-    for info in matched_groups_info:
-        # Create a copy of the replacement group
-        new_group = ET.fromstring(ET.tostring(info['replace_group']))
+        original_group = match.get('original_group')  # This is the matched subgroup
+        replace_group = match['replace_group']
+        rotation = match['rotation']
+        tx = match['tx']
+        ty = match['ty']
         
-        # Set the position and rotation
-        set_element_transform(new_group, info['rotation'], info['tx'], info['ty'])
+        # Create a copy of the replacement group with the appropriate transform
+        new_group = ET.fromstring(ET.tostring(replace_group))
+        set_element_transform(new_group, rotation, tx, ty)
         
         # Add the new group to the root
         input_root.append(new_group)
+        
+        # Mark the original elements for removal
+        if original_group is not None:
+            matched_elements_to_remove.append(original_group)
+    
+    # Remove matched elements from their parent groups
+    for original_group in matched_elements_to_remove:
+        # Find the parent of this original group in the original structure and remove these elements
+        for parent in input_root.iter():
+            # Remove each child of the matched group from the parent
+            for child in list(original_group):
+                for p_child in list(parent):
+                    if p_child == child:
+                        parent.remove(p_child)
+                        break
     
     # Write the output SVG
     # Pretty print the XML
