@@ -7089,7 +7089,7 @@
   <ns0:g clip-path="url(#clipId0)" fill="rgb(255,0,63)" stroke="rgb(255,0,63)" stroke-width="0.75" id="g7084">
     <ns0:path d="M2736.8,4202.4 2704.82,4234.05 2704.82,4234.05 2718.04,4191.04 z" id="path7083"/>
   </ns0:g>
-  <ns0:g id="replace_001" style="clip-rule:evenodd;display:inline;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(4706.7,4317.27) matrix(0.26457025,0,0,0.26457025,-826.56524,-292.34893)">
+  <ns0:g id="replace_001" style="clip-rule:evenodd;display:inline;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(4706.7,4317.27) matrix(1.0,0,0,1.0,-826.56524,-292.34893)">
     <ns0:g id="MANFROTO-TRIPOD-2" ns3:id="MANFROTO TRIPOD 2" transform="matrix(-0.00540462,-0.43070583,-0.43070583,0.00540462,3189.4543,1169.7473)">
       <ns0:path id="path33-9-0-7" d="m 95.317,85.815 -2.508,2.919 -0.182,7.253 -0.117,5.397 0.378,2.054 c 1.182,1.276 1.171,0 1.628,-3.541 0.239,-1.855 0.497,-3.751 0.551,-5.632 0.053,-1.823 0.299,-3.539 0.535,-5.465 0.086,-0.699 0.172,-1.21 0.164,-1.673 -0.003,-0.171 -0.017,-0.473 0.062,-0.634 0.312,-0.627 0.456,-1.43 -0.511,-0.678 z" style="fill:#1e2128;fill-rule:nonzero;stroke:#1a1a1a;stroke-width:0.22px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4"/>
       <ns0:path id="rect25-4-2-2" d="m 92.21,103.438 c -0.764,0 -0.936,1.662 -0.936,3.761 0,2.1 0.172,3.818 0.936,3.818 h 3.698 c 0.763,0 0.831,-1.718 0.831,-3.818 0,-2.099 -0.068,-3.761 -0.831,-3.761 z" style="fill:#2d3034;fill-rule:nonzero;stroke:#919191;stroke-width:0.14px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4"/>
