@@ -460,17 +460,24 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
     
     print(f"Found {len(matches)} matches")
     
-    # For each match, remove the matched input groups and add the replacement groups
+    # For each match, remove the matched input groups and add the replacement group
+    # while preserving the position of the first matched input group
     for match in matches:
         input_group_ids = match['input_groups']
         replace_group = match['replace_group']
-        rotation = match['rotation']
-        tx = match['tx']
-        ty = match['ty']
         
-        # Create a copy of the replacement group with the appropriate transform
+        # Get the first matched input group to preserve its transform and position
+        first_input_group = input_groups[input_group_ids[0]]
+        original_transform = first_input_group.get('transform', '')
+        
+        # Create a copy of the replacement group
         new_group = ET.fromstring(ET.tostring(replace_group, encoding='unicode'))
-        set_element_transform(new_group, rotation, tx, ty)
+        
+        # Apply the original transform to maintain position and size
+        if original_transform:
+            new_group.set('transform', original_transform)
+        elif 'transform' in new_group.attrib:
+            del new_group.attrib['transform']
         
         # Add the new group to the root
         input_root.append(new_group)
@@ -487,6 +494,7 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
                     if child == original_group:
                         parent.remove(child)
                         break
+
     
     # Write the output SVG with proper formatting
     # Convert to string and fix common formatting issues
