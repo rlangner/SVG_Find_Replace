@@ -785,6 +785,17 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
             png_filename = f"debug_pngs/lookup_{lookup_id}.png"
             save_bitmap_as_png(lookup_bitmap, png_filename)
             print(f"Saved lookup group {lookup_id} as {png_filename}")
+        
+        # Also save PNGs for subgroups of the lookup group
+        lookup_subgroups = find_subgroups(lookup_group)
+        for i, subgroup in enumerate(lookup_subgroups):
+            # Create a unique ID for the subgroup
+            subgroup_id = f"{lookup_id}_subgroup_{i}"
+            subgroup_bitmap = svg_to_bitmap(subgroup)
+            if subgroup_bitmap:
+                png_filename = f"debug_pngs/lookup_{subgroup_id}.png"
+                save_bitmap_as_png(subgroup_bitmap, png_filename)
+                print(f"Saved lookup subgroup {subgroup_id} as {png_filename}")
     
     for lookup_id, lookup_group in lookup_groups.items():
         if not lookup_id.startswith('find_'):
