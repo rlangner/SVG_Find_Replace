@@ -537,31 +537,43 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
         orig_center_x = (min_x + max_x) / 2
         orig_center_y = (min_y + max_y) / 2
         
-        # Calculate the bounding box of the replacement group
-        replace_bbox = get_element_bbox(replace_group)
-        replace_width = replace_bbox[2] - replace_bbox[0]
-        replace_height = replace_bbox[3] - replace_bbox[1]
-        
-        # Calculate the center of the replacement group
-        replace_center_x = (replace_bbox[0] + replace_bbox[2]) / 2
-        replace_center_y = (replace_bbox[1] + replace_bbox[3]) / 2
-        
-        # Calculate the translation needed to position the replacement group
-        # so that its center aligns with the original cluster center
-        translate_x = orig_center_x - replace_center_x
-        translate_y = orig_center_y - replace_center_y
-        
         # Create a copy of the replacement group
         new_group = ET.fromstring(ET.tostring(replace_group, encoding='unicode'))
         
-        # Apply the calculated translation
-        transforms = []
+        # Get the original transform
         original_transform = new_group.get('transform', '')
-        if original_transform:
-            transforms.append(original_transform)
-        transforms.append(f'translate({translate_x},{translate_y})')
         
-        new_group.set('transform', ' '.join(transforms))
+        # If the original transform is a matrix, we need to modify the translation part
+        # to position the replacement group at the correct location while preserving scale/rotation
+        if original_transform.startswith('matrix('):
+            # Parse the matrix: matrix(a,b,c,d,e,f) where a/d are scale, e/f are translation
+            import re
+            matrix_match = re.match(r'matrix\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\)', original_transform)
+            if matrix_match:
+                a, b, c, d, e, f = [float(x.strip()) for x in matrix_match.groups()]
+                
+                # The matrix is [a c e]
+                #                  [b d f]
+                #                  [0 0 1]
+                # For a simple scale + translate, a and d are scale factors, e and f are translations
+                # We want to preserve the scale (a, d) but change the translation to place the object at orig_center_x, orig_center_y
+                # The original translation (e, f) positions the object relative to its local coordinates
+                # To position it at the target location, we simply replace e and f with the target coordinates
+                new_transform = f'matrix({a},{b},{c},{d},{orig_center_x},{orig_center_y})'
+            else:
+                # Fallback: just translate to the target position
+                new_transform = f'translate({orig_center_x},{orig_center_y})'
+        else:
+            # For other transforms (translate, rotate, etc.), append a translation to reach the target position
+            # If there's already a translation, we need to combine them
+            if original_transform:
+                # Just override with the target translation to position at correct location
+                new_transform = f'translate({orig_center_x},{orig_center_y})'
+            else:
+                # If no existing transform, just set the translation
+                new_transform = f'translate({orig_center_x},{orig_center_y})'
+        
+        new_group.set('transform', new_transform)
         
         # Add the new group to the root
         input_root.append(new_group)
