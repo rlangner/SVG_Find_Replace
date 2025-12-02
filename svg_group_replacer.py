@@ -521,57 +521,60 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
         input_group_ids = match['input_groups']
         replace_group = match['replace_group']
         
-        # Calculate the bounding box of all matched input groups
-        min_x, min_y = float('inf'), float('inf')
-        max_x, max_y = float('-inf'), float('-inf')
+        # Get the position of the first matched input group to preserve the original location
+        first_input_id = input_group_ids[0]
+        first_input_group = input_groups[first_input_id]
         
-        for input_id in input_group_ids:
-            input_group = input_groups[input_id]
-            bbox = get_element_bbox(input_group)
-            min_x = min(min_x, bbox[0])
-            min_y = min(min_y, bbox[1])
-            max_x = max(max_x, bbox[2])
-            max_y = max(max_y, bbox[3])
+        # Get the transform of the first input group to preserve the original location
+        input_rotation, input_tx, input_ty = get_element_transform(first_input_group)
         
-        # Calculate the center of the original cluster
-        orig_center_x = (min_x + max_x) / 2
-        orig_center_y = (min_y + max_y) / 2
+        # If the first group has no explicit transform, we need to look for its position in its content
+        # Looking at the elements, we need to find the actual coordinates from the geometry
+        if input_tx == 0 and input_ty == 0:
+            # Calculate the bounding box of the first input group to get its position
+            bbox = get_element_bbox(first_input_group)
+            if bbox[0] != 0 or bbox[1] != 0:  # If bbox has meaningful values
+                input_tx = bbox[0]  # Use the left edge as x position
+                input_ty = bbox[1]  # Use the top edge as y position
+            else:
+                # If bbox is also zero, we'll need to get the position differently
+                # For now, use a default approach by looking at the first element's coordinates
+                for child in first_input_group:
+                    tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag  # Remove namespace
+                    if tag == 'polygon' or tag == 'polyline':
+                        points = child.get('points', '')
+                        if points:
+                            coord_pairs = points.strip().split()
+                            if coord_pairs:
+                                first_pair = coord_pairs[0].split(',')
+                                if len(first_pair) >= 2:
+                                    input_tx = float(first_pair[0])
+                                    input_ty = float(first_pair[1])
+                                    break
+                    elif tag == 'path':
+                        d = child.get('d', '')
+                        if d and d.startswith('M'):
+                            # Extract first coordinates after M command
+                            import re
+                            coords = re.findall(r'-?\d+\.?\d+', d)
+                            if len(coords) >= 2:
+                                input_tx = float(coords[0])
+                                input_ty = float(coords[1])
+                                break
+                    elif tag == 'rect':
+                        input_tx = float(child.get('x', 0))
+                        input_ty = float(child.get('y', 0))
+                        break
+                    elif tag == 'circle' or tag == 'ellipse':
+                        input_tx = float(child.get('cx', 0))
+                        input_ty = float(child.get('cy', 0))
+                        break
         
         # Create a copy of the replacement group
         new_group = ET.fromstring(ET.tostring(replace_group, encoding='unicode'))
         
-        # Get the original transform
-        original_transform = new_group.get('transform', '')
-        
-        # If the original transform is a matrix, we need to modify the translation part
-        # to position the replacement group at the correct location while preserving scale/rotation
-        if original_transform.startswith('matrix('):
-            # Parse the matrix: matrix(a,b,c,d,e,f) where a/d are scale, e/f are translation
-            import re
-            matrix_match = re.match(r'matrix\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\)', original_transform)
-            if matrix_match:
-                a, b, c, d, e, f = [float(x.strip()) for x in matrix_match.groups()]
-                
-                # The matrix is [a c e]
-                #                  [b d f]
-                #                  [0 0 1]
-                # For a simple scale + translate, a and d are scale factors, e and f are translations
-                # We want to preserve the scale (a, d) but change the translation to place the object at orig_center_x, orig_center_y
-                # The original translation (e, f) positions the object relative to its local coordinates
-                # To position it at the target location, we simply replace e and f with the target coordinates
-                new_transform = f'matrix({a},{b},{c},{d},{orig_center_x},{orig_center_y})'
-            else:
-                # Fallback: just translate to the target position
-                new_transform = f'translate({orig_center_x},{orig_center_y})'
-        else:
-            # For other transforms (translate, rotate, etc.), append a translation to reach the target position
-            # If there's already a translation, we need to combine them
-            if original_transform:
-                # Just override with the target translation to position at correct location
-                new_transform = f'translate({orig_center_x},{orig_center_y})'
-            else:
-                # If no existing transform, just set the translation
-                new_transform = f'translate({orig_center_x},{orig_center_y})'
+        # Apply the same transform as the original group to preserve position
+        new_transform = f'translate({input_tx},{input_ty})'
         
         new_group.set('transform', new_transform)
         
