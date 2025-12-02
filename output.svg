@@ -7,8 +7,8 @@
    fill-rule="evenodd"
    xml:space="preserve"
    id="svg7084"
-   sodipodi:docname="BEAU-TX-CO-Plans AFTER.svg"
-   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   sodipodi:docname="output.svg"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
@@ -23,14 +23,15 @@
    inkscape:pagecheckerboard="0"
    inkscape:deskcolor="#d1d1d1"
    inkscape:zoom="0.23989083"
-   inkscape:cx="3747.538"
-   inkscape:cy="4366.5696"
-   inkscape:window-width="1680"
-   inkscape:window-height="979"
-   inkscape:window-x="-8"
-   inkscape:window-y="-8"
+   inkscape:cx="3553.6998"
+   inkscape:cy="4368.6539"
+   inkscape:window-width="1792"
+   inkscape:window-height="1062"
+   inkscape:window-x="0"
+   inkscape:window-y="0"
    inkscape:window-maximized="1"
-   inkscape:current-layer="svg7084" />
+   inkscape:current-layer="svg7084"
+   showgrid="false" />
 <defs
    id="defs1">
 <clipPath
@@ -20461,7 +20462,7 @@
 
 
 <g
-   id="g7686"
+   id="replace_001"
    style="clip-rule:evenodd;display:inline;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10"
    transform="matrix(0.99995056,0,0,0.99995056,1580.0121,3207.1692)"><g
      id="MANFROTO-TRIPOD-2"
