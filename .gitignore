@@ -1,1 +1,1 @@
-Nothing needs to be added to .gitignore since the only modified file is `output.svg`, which is an SVG image file that should be tracked in version control.
+(output nothing)

@@ -57,6 +57,7 @@ def get_element_bbox(element):
     """Get the bounding box of an SVG element by analyzing its child elements."""
     min_x, min_y = float('inf'), float('inf')
     max_x, max_y = float('-inf'), float('-inf')
+    has_significant_coords = False
     
     for child in element:
         tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag  # Remove namespace
@@ -65,45 +66,70 @@ def get_element_bbox(element):
             points = child.get('points', '')
             coords = extract_coords_from_points(points)
             for x, y in coords:
-                min_x, max_x = min(min_x, x), max(max_x, x)
-                min_y, max_y = min(min_y, y), max(max_y, y)
+                # Only consider coordinates that are significantly away from origin
+                if abs(x) > 1 or abs(y) > 1:
+                    min_x, max_x = min(min_x, x), max(max_x, x)
+                    min_y, max_y = min(min_y, y), max(max_y, y)
+                    has_significant_coords = True
         elif tag == 'path':
             d = child.get('d', '')
             coords = extract_coords_from_path(d)
             for x, y in coords:
-                min_x, max_x = min(min_x, x), max(max_x, x)
-                min_y, max_y = min(min_y, y), max(max_y, y)
+                # Only consider coordinates that are significantly away from origin
+                if abs(x) > 1 or abs(y) > 1:
+                    min_x, max_x = min(min_x, x), max(max_x, x)
+                    min_y, max_y = min(min_y, y), max(max_y, y)
+                    has_significant_coords = True
         elif tag == 'rect':
             x = float(child.get('x', 0))
             y = float(child.get('y', 0))
             width = float(child.get('width', 0))
             height = float(child.get('height', 0))
-            min_x, max_x = min(min_x, x), max(max_x, x + width)
-            min_y, max_y = min(min_y, y), max(max_y, y + height)
+            # Only consider if the rect is significantly away from origin
+            if abs(x) > 1 or abs(y) > 1 or width > 1 or height > 1:
+                min_x, max_x = min(min_x, x), max(max_x, x + width)
+                min_y, max_y = min(min_y, y), max(max_y, y + height)
+                has_significant_coords = True
         elif tag == 'circle':
             cx = float(child.get('cx', 0))
             cy = float(child.get('cy', 0))
             r = float(child.get('r', 0))
-            min_x, max_x = min(min_x, cx - r), max(max_x, cx + r)
-            min_y, max_y = min(min_y, cy - r), max(max_y, cy + r)
+            # Only consider if the circle is significantly away from origin or has significant radius
+            if abs(cx) > 1 or abs(cy) > 1 or r > 1:
+                min_x, max_x = min(min_x, cx - r), max(max_x, cx + r)
+                min_y, max_y = min(min_y, cy - r), max(max_y, cy + r)
+                has_significant_coords = True
         elif tag == 'ellipse':
             cx = float(child.get('cx', 0))
             cy = float(child.get('cy', 0))
             rx = float(child.get('rx', 0))
             ry = float(child.get('ry', 0))
-            min_x, max_x = min(min_x, cx - rx), max(max_x, cx + rx)
-            min_y, max_y = min(min_y, cy - ry), max(max_y, cy + ry)
+            # Only consider if the ellipse is significantly away from origin or has significant radius
+            if abs(cx) > 1 or abs(cy) > 1 or rx > 1 or ry > 1:
+                min_x, max_x = min(min_x, cx - rx), max(max_x, cx + rx)
+                min_y, max_y = min(min_y, cy - ry), max(max_y, cy + ry)
+                has_significant_coords = True
         elif tag in ['line']:
             x1 = float(child.get('x1', 0))
             y1 = float(child.get('y1', 0))
             x2 = float(child.get('x2', 0))
             y2 = float(child.get('y2', 0))
-            min_x, max_x = min(min_x, x1, x2), max(max_x, x1, x2)
-            min_y, max_y = min(min_y, y1, y2), max(max_y, y1, y2)
+            # Only consider if the line is significantly away from origin or has significant length
+            if abs(x1) > 1 or abs(y1) > 1 or abs(x2) > 1 or abs(y2) > 1 or \
+               abs(x2-x1) > 1 or abs(y2-y1) > 1:
+                min_x, max_x = min(min_x, x1, x2), max(max_x, x1, x2)
+                min_y, max_y = min(min_y, y1, y2), max(max_y, y1, y2)
+                has_significant_coords = True
     
-    # If no child elements were found, return a default bounding box
-    if min_x == float('inf'):
-        return (0, 0, 0, 0)
+    # If no significant coordinates were found, return a default bounding box
+    if not has_significant_coords:
+        # Try to get the transform values instead
+        rotation, tx, ty = get_element_transform(element)
+        if tx != 0 or ty != 0:
+            # Use the transform position as the bounding box
+            return (tx, ty, tx + 1, ty + 1)
+        else:
+            return (0, 0, 0, 0)
     
     return (min_x, min_y, max_x, max_y)
 
@@ -144,14 +170,28 @@ def generate_geometric_signature(svg_content):
                 # Also include some geometric properties
                 coords = extract_coords_from_path(d)
                 if coords:
-                    xs = [x for x, y in coords]
-                    ys = [y for x, y in coords]
-                    if xs and ys:
-                        min_x, max_x = min(xs), max(xs)
-                        min_y, max_y = min(ys), max(ys)
-                        width = max_x - min_x
-                        height = max_y - min_y
-                        signature.append(('path', tuple(sorted(command_counts.items())), round(width, 1), round(height, 1), len(coords)))
+                    # Filter out coordinates that are near the origin (0,0) - these are often placeholders
+                    significant_coords = [(x, y) for x, y in coords if abs(x) > 1 or abs(y) > 1]
+                    
+                    if significant_coords:
+                        xs = [x for x, y in significant_coords]
+                        ys = [y for x, y in significant_coords]
+                        if xs and ys:
+                            min_x, max_x = min(xs), max(xs)
+                            min_y, max_y = min(ys), max(ys)
+                            width = max_x - min_x
+                            height = max_y - min_y
+                            signature.append(('path', tuple(sorted(command_counts.items())), round(width, 1), round(height, 1), len(significant_coords)))
+                    else:
+                        # If no significant coords, use all coords but mark as potentially problematic
+                        xs = [x for x, y in coords]
+                        ys = [y for x, y in coords]
+                        if xs and ys:
+                            min_x, max_x = min(xs), max(xs)
+                            min_y, max_y = min(ys), max(ys)
+                            width = max_x - min_x
+                            height = max_y - min_y
+                            signature.append(('path', tuple(sorted(command_counts.items())), round(width, 1), round(height, 1), len(coords)))
             elif tag == 'line':
                 x1 = round(float(elem.get('x1', 0)), 1)
                 y1 = round(float(elem.get('y1', 0)), 1)
@@ -181,15 +221,29 @@ def generate_geometric_signature(svg_content):
                 coords = extract_coords_from_points(points)
                 # Round coordinates to reduce precision differences
                 rounded_coords = [(round(x, 1), round(y, 1)) for x, y in coords]
-                if rounded_coords:
+                
+                # Filter out coordinates that are near the origin (0,0) - these are often placeholders
+                significant_coords = [(x, y) for x, y in rounded_coords if abs(x) > 1 or abs(y) > 1]
+                
+                if significant_coords:
                     # Calculate bounding box
-                    xs = [x for x, y in rounded_coords]
-                    ys = [y for x, y in rounded_coords]
+                    xs = [x for x, y in significant_coords]
+                    ys = [y for x, y in significant_coords]
                     min_x, max_x = min(xs), max(xs)
                     min_y, max_y = min(ys), max(ys)
                     width = max_x - min_x
                     height = max_y - min_y
-                    signature.append(('shape', round(width, 1), round(height, 1), len(rounded_coords)))
+                    signature.append(('shape', round(width, 1), round(height, 1), len(significant_coords)))
+                else:
+                    # If no significant coords, use all coords but mark as potentially problematic
+                    if rounded_coords:
+                        xs = [x for x, y in rounded_coords]
+                        ys = [y for x, y in rounded_coords]
+                        min_x, max_x = min(xs), max(xs)
+                        min_y, max_y = min(ys), max(ys)
+                        width = max_x - min_x
+                        height = max_y - min_y
+                        signature.append(('shape', round(width, 1), round(height, 1), len(rounded_coords)))
     
     # Sort signature to make it order-independent
     signature.sort()
@@ -202,11 +256,15 @@ def extract_groups(svg_tree):
     root = svg_tree.getroot()
     
     # Find all groups in the SVG
-    for elem in root.iter():
+    for i, elem in enumerate(root.iter()):
         if elem.tag.endswith('}g') or elem.tag == 'g':  # Handle namespace
             group_id = elem.get('id', '')
-            if group_id:  # Only store groups with IDs
+            if group_id:  # If group has an ID, use it
                 groups[group_id] = elem
+            else:  # If no ID, create a unique ID based on its content signature
+                signature = generate_geometric_signature(ET.tostring(elem, encoding='unicode'))
+                unique_id = f"group_{i}_{abs(hash(signature)) % 10000}"
+                groups[unique_id] = elem
     
     return groups
 
@@ -306,6 +364,12 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
     matches = []
     used_input_ids = set()  # Track which input groups have been used to avoid duplicate matches
     
+    # First, calculate the bounding boxes for all input groups to help with spatial matching
+    input_bboxes = {}
+    for input_id, input_group in input_groups.items():
+        bbox = get_element_bbox(input_group)
+        input_bboxes[input_id] = bbox
+    
     for lookup_id, lookup_group in lookup_groups.items():
         if not lookup_id.startswith('find_'):
             continue  # Only process find_ groups
@@ -322,58 +386,146 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
         target_subgroups = find_subgroups(lookup_group)
         
         if not target_subgroups:
-            continue  # Skip if lookup group has no subgroups to match
-        
-        print(f"Looking for {len(target_subgroups)} subgroups matching {lookup_id}")
-        
-        # Instead of using geometric signatures, let's try to match based on IDs
-        # Get the IDs of the target subgroups
-        target_ids = [subgroup.get('id') for subgroup in target_subgroups if subgroup.get('id')]
-        
-        if target_ids:
-            print(f"  Looking for target IDs: {target_ids}")
+            # If no subgroups, treat the entire lookup group as the target
+            print(f"Looking for full group matching {lookup_id}")
             
-            # Look for input groups with the same IDs
-            matched_cluster = []
-            for target_id in target_ids:
-                for input_id, input_group in input_groups.items():
-                    if input_id == target_id and input_id not in used_input_ids:
-                        matched_cluster.append((input_id, input_group))
-                        break  # Each input group should only be used once
+            # Create signature for the entire lookup group
+            target_signature = generate_geometric_signature(lookup_group)
+            print(f"  Target signature: {target_signature}")
             
-            if len(matched_cluster) == len(target_subgroups):
+            # Look for input groups that match this signature
+            matched_input_groups = []
+            for input_id, input_group in input_groups.items():
+                if input_id in used_input_ids:
+                    continue
+                
+                input_sig = generate_geometric_signature(input_group)
+                
+                # Check if this input group matches the target
+                if compare_signatures(input_sig, target_signature):
+                    matched_input_groups.append((input_id, input_group))
+                    print(f"  Input {input_id} matches target signature")
+            
+            if matched_input_groups:
                 # Get transform from the first matched group as reference
-                first_input_id, first_input_group = matched_cluster[0]
+                first_input_id, first_input_group = matched_input_groups[0]
                 input_rotation, input_tx, input_ty = get_element_transform(first_input_group)
                 
-                matches.append({
-                    'input_groups': [item[0] for item in matched_cluster],  # List of input group IDs
-                    'lookup_id': lookup_id,
-                    'replace_group': replace_groups[replace_id],
-                    'rotation': input_rotation,
-                    'tx': input_tx,
-                    'ty': input_ty
-                })
-                
-                # Mark these input groups as used
-                for input_id, _ in matched_cluster:
+                for input_id, input_group in matched_input_groups:
+                    matches.append({
+                        'input_groups': [input_id],  # Single input group
+                        'lookup_id': lookup_id,
+                        'replace_group': replace_groups[replace_id],
+                        'rotation': input_rotation,
+                        'tx': input_tx,
+                        'ty': input_ty
+                    })
+                    
+                    # Mark this input group as used
                     used_input_ids.add(input_id)
-                
-                print(f"Found match: {[item[0] for item in matched_cluster]} matches {lookup_id}")
+                    
+                    print(f"Found match: {input_id} matches {lookup_id}")
             else:
-                print(f"  Found only {len(matched_cluster)} out of {len(target_subgroups)} target IDs")
-        
+                print(f"  No input groups matched target signature")
         else:
-            # If no target IDs, fall back to geometric matching
+            # We have subgroups to match - match based on geometric signatures and spatial arrangement
+            print(f"Looking for {len(target_subgroups)} subgroups matching {lookup_id}")
+            
             # Create signatures for all target subgroups
             target_signatures = []
+            target_bboxes = []
             for i, target_subgroup in enumerate(target_subgroups):
                 sig = generate_geometric_signature(target_subgroup)
                 target_signatures.append(sig)
-                print(f"  Target {i} signature: {sig}")
+                
+                # Get the bounding box of the target subgroup
+                bbox = get_element_bbox(target_subgroup)
+                # If bbox is invalid (all zeros or extreme values), try to get a more meaningful position
+                if bbox == (0, 0, 0, 0) or (bbox[2] - bbox[0] == 0 and bbox[3] - bbox[1] == 0):
+                    # Calculate position based on transform or first element
+                    rotation, tx, ty = get_element_transform(target_subgroup)
+                    if tx != 0 or ty != 0:
+                        bbox = (tx, ty, tx + 1, ty + 1)  # Create a small bbox at the transform position
+                    else:
+                        # Calculate position from first child element
+                        for child in target_subgroup:
+                            tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag  # Remove namespace
+                            if tag in ['path', 'line', 'rect', 'circle', 'ellipse', 'polygon', 'polyline']:
+                                # Extract coordinates from the first meaningful element
+                                if tag == 'polygon' or tag == 'polyline':
+                                    points = child.get('points', '')
+                                    if points:
+                                        coords = extract_coords_from_points(points)
+                                        if coords:
+                                            xs = [x for x, y in coords]
+                                            ys = [y for x, y in coords]
+                                            min_x, max_x = min(xs), max(xs)
+                                            min_y, max_y = min(ys), max(ys)
+                                            bbox = (min_x, min_y, max_x, max_y)
+                                            break
+                                elif tag == 'path':
+                                    d = child.get('d', '')
+                                    if d:
+                                        coords = extract_coords_from_path(d)
+                                        if coords:
+                                            xs = [x for x, y in coords]
+                                            ys = [y for x, y in coords]
+                                            if xs and ys:
+                                                min_x, max_x = min(xs), max(xs)
+                                                min_y, max_y = min(ys), max(ys)
+                                                bbox = (min_x, min_y, max_x, max_y)
+                                                break
+                                elif tag == 'rect':
+                                    x = float(child.get('x', 0))
+                                    y = float(child.get('y', 0))
+                                    width = float(child.get('width', 0))
+                                    height = float(child.get('height', 0))
+                                    bbox = (x, y, x + width, y + height)
+                                    break
+                                elif tag == 'circle':
+                                    cx = float(child.get('cx', 0))
+                                    cy = float(child.get('cy', 0))
+                                    r = float(child.get('r', 0))
+                                    bbox = (cx - r, cy - r, cx + r, cy + r)
+                                    break
+                                elif tag == 'ellipse':
+                                    cx = float(child.get('cx', 0))
+                                    cy = float(child.get('cy', 0))
+                                    rx = float(child.get('rx', 0))
+                                    ry = float(child.get('ry', 0))
+                                    bbox = (cx - rx, cy - ry, cx + rx, cy + ry)
+                                    break
+                                elif tag in ['line']:
+                                    x1 = float(child.get('x1', 0))
+                                    y1 = float(child.get('y1', 0))
+                                    x2 = float(child.get('x2', 0))
+                                    y2 = float(child.get('y2', 0))
+                                    min_x, max_x = min(x1, x2), max(x1, x2)
+                                    min_y, max_y = min(y1, y2), max(y1, y2)
+                                    bbox = (min_x, min_y, max_x, max_y)
+                                    break
+                
+                target_bboxes.append(bbox)
+                
+                print(f"  Target {i} signature: {sig}, bbox: {bbox}")
             
-            # Try to match input groups to target subgroups
-            # Build a mapping of input groups to potential target matches
+            # Calculate relative positions between target subgroups (for spatial matching)
+            target_relative_positions = []
+            if len(target_bboxes) > 1:
+                # Use the first target as the reference point
+                ref_x = (target_bboxes[0][0] + target_bboxes[0][2]) / 2  # center x of first target
+                ref_y = (target_bboxes[0][1] + target_bboxes[0][3]) / 2  # center y of first target
+                
+                for bbox in target_bboxes:
+                    center_x = (bbox[0] + bbox[2]) / 2
+                    center_y = (bbox[1] + bbox[3]) / 2
+                    target_relative_positions.append((center_x - ref_x, center_y - ref_y))
+            else:
+                target_relative_positions.append((0, 0))
+            
+            print(f"  Target relative positions: {target_relative_positions}")
+            
+            # Find all input groups that match any of the target signatures
             input_to_targets = {}
             for input_id, input_group in input_groups.items():
                 if input_id in used_input_ids:
@@ -392,22 +544,101 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
             
             print(f"  Found {len(input_to_targets)} potential input matches")
             
-            # Now try to find a complete assignment (each target subgroup matched to exactly one input group)
-            # This is essentially a bipartite matching problem
-            from itertools import permutations
+            # Group potential matches by spatial proximity to form clusters
+            from itertools import combinations
             
+            potential_clusters = []
+            
+            # Try to form clusters of input groups that could match the target subgroups
             available_input_ids = list(input_to_targets.keys())
             
-            if len(available_input_ids) < len(target_subgroups):
-                print(f"  Not enough input groups ({len(available_input_ids)}) to match targets ({len(target_subgroups)})")
-                continue  # Not enough input groups to match this lookup
+            if len(available_input_ids) >= len(target_subgroups):
+                # Find all possible combinations of input groups that match the required number of target subgroups
+                for combo in combinations(available_input_ids, len(target_subgroups)):
+                    # Check if this combination could match all target subgroups
+                    combo_targets = set()
+                    for input_id in combo:
+                        _, possible_targets = input_to_targets[input_id]
+                        combo_targets.update(possible_targets)
+                    
+                    # Check if this combination covers all target subgroups
+                    if len(combo_targets) == len(target_subgroups):
+                        # Calculate relative positions for this cluster
+                        cluster_bboxes = []
+                        for input_id in combo:
+                            bbox = input_bboxes[input_id]
+                            cluster_bboxes.append(bbox)
+                        
+                        # Calculate relative positions of this cluster
+                        cluster_relative_positions = []
+                        if len(cluster_bboxes) > 1:
+                            # Use the first input as the reference point
+                            ref_x = (cluster_bboxes[0][0] + cluster_bboxes[0][2]) / 2
+                            ref_y = (cluster_bboxes[0][1] + cluster_bboxes[0][3]) / 2
+                            
+                            for bbox in cluster_bboxes:
+                                center_x = (bbox[0] + bbox[2]) / 2
+                                center_y = (bbox[1] + bbox[3]) / 2
+                                cluster_relative_positions.append((center_x - ref_x, center_y - ref_y))
+                        else:
+                            cluster_relative_positions.append((0, 0))
+                        
+                        # Check if relative positions are similar (within tolerance)
+                        position_match = True
+                        if len(target_relative_positions) > 1:
+                            # Calculate distances between points for both target and cluster
+                            target_distances = []
+                            cluster_distances = []
+                            
+                            for i in range(len(target_relative_positions)):
+                                for j in range(i + 1, len(target_relative_positions)):
+                                    t_dist = ((target_relative_positions[i][0] - target_relative_positions[j][0])**2 + 
+                                             (target_relative_positions[i][1] - target_relative_positions[j][1])**2)**0.5
+                                    c_dist = ((cluster_relative_positions[i][0] - cluster_relative_positions[j][0])**2 + 
+                                             (cluster_relative_positions[i][1] - cluster_relative_positions[j][1])**2)**0.5
+                                    
+                                    target_distances.append(t_dist)
+                                    cluster_distances.append(c_dist)
+                            
+                            # Compare distances (allowing for some scaling)
+                            if target_distances and cluster_distances:
+                                # Calculate scaling factor
+                                avg_target_dist = sum(target_distances) / len(target_distances) if target_distances else 1
+                                avg_cluster_dist = sum(cluster_distances) / len(cluster_distances) if cluster_distances else 1
+                                
+                                if avg_target_dist > 0:
+                                    scale_factor = avg_cluster_dist / avg_target_dist
+                                else:
+                                    scale_factor = 1
+                                
+                                # Check if distances match after scaling
+                                for t_dist, c_dist in zip(target_distances, cluster_distances):
+                                    expected_c_dist = t_dist * scale_factor
+                                    if expected_c_dist > 0 and abs(c_dist - expected_c_dist) / expected_c_dist > 0.5:  # 50% tolerance
+                                        position_match = False
+                                        break
+                                    elif expected_c_dist == 0 and abs(c_dist) > 10:  # If target distance is 0, allow small cluster distance
+                                        position_match = False
+                                        break
+                        else:
+                            # Single element case - always matches position
+                            pass
+                        
+                        if position_match:
+                            potential_clusters.append(combo)
             
-            # Try different assignments of input groups to target subgroups
-            # For efficiency, only try if we have a reasonable number of possibilities
-            if len(available_input_ids) <= len(target_subgroups) * 2:  # Reasonable limit
-                print(f"  Trying {len(available_input_ids)} available inputs for {len(target_subgroups)} targets")
-                # Try to find a valid assignment where each target gets matched to one input
-                for assignment in permutations(available_input_ids, len(target_subgroups)):
+            # Check each potential cluster for a complete match
+            for cluster in potential_clusters:
+                # Create a bipartite matching for this cluster
+                cluster_input_to_targets = {id: input_to_targets[id] for id in cluster}
+                
+                # Try to assign each input in the cluster to a unique target
+                cluster_list = list(cluster)
+                target_indices = list(range(len(target_subgroups)))
+                
+                # Try all permutations to find a valid assignment
+                from itertools import permutations
+                for assignment in permutations(cluster_list, len(target_subgroups)):
                     valid_assignment = True
                     matched_cluster = []
                     
@@ -441,45 +672,7 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
                             used_input_ids.add(input_id)
                         
                         print(f"Found match: {[item[0] for item in matched_cluster]} matches {lookup_id}")
-                        break  # Found a valid assignment, move to next lookup group
-            else:
-                # For large numbers, use a greedy approach
-                matched_cluster = []
-                assigned_targets = set()
-                assigned_inputs = set()
-                
-                # For each target subgroup, try to find the best matching input group
-                for target_idx, target_sig in enumerate(target_signatures):
-                    best_match = None
-                    for input_id, (input_group, possible_targets) in input_to_targets.items():
-                        if input_id in assigned_inputs:
-                            continue
-                        if target_idx in possible_targets and target_idx not in assigned_targets:
-                            best_match = (input_id, input_group)
-                            assigned_targets.add(target_idx)
-                            assigned_inputs.add(input_id)
-                            matched_cluster.append(best_match)
-                            break
-                
-                if len(matched_cluster) == len(target_subgroups):
-                    # Get transform from the first matched group as reference
-                    first_input_id, first_input_group = matched_cluster[0]
-                    input_rotation, input_tx, input_ty = get_element_transform(first_input_group)
-                    
-                    matches.append({
-                        'input_groups': [item[0] for item in matched_cluster],  # List of input group IDs
-                        'lookup_id': lookup_id,
-                        'replace_group': replace_groups[replace_id],
-                        'rotation': input_rotation,
-                        'tx': input_tx,
-                        'ty': input_ty
-                    })
-                    
-                    # Mark these input groups as used
-                    for input_id, _ in matched_cluster:
-                        used_input_ids.add(input_id)
-                    
-                    print(f"Found match: {[item[0] for item in matched_cluster]} matches {lookup_id}")
+                        break  # Found a valid assignment for this lookup, continue to next lookup
     
     return matches
 
