@@ -710,7 +710,7 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
                 input_bitmap = svg_to_bitmap(input_group)
                 
                 # Check if this input group matches the target
-                if compare_bitmaps(input_bitmap, target_bitmap):
+                if compare_bitmaps(input_bitmap, target_bitmap, tolerance=0.02):  # Allow 2% tolerance
                     matched_input_groups.append((input_id, input_group))
                     print(f"  Input {input_id} matches target bitmap")
             
@@ -843,8 +843,16 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
                 # Check if this input group matches any of the target subgroups
                 matching_targets = []
                 for i, target_sig in enumerate(target_signatures):
-                    if input_sig == target_sig:  # Direct signature comparison for efficiency
+                    # First try direct signature comparison for efficiency
+                    if input_sig == target_sig:
                         matching_targets.append(i)
+                    else:
+                        # If signature doesn't match, try visual bitmap comparison
+                        input_bitmap = svg_to_bitmap(input_group)
+                        target_bitmap = svg_to_bitmap(target_subgroups[i])
+                        # Use stricter tolerance for visual matching
+                        if compare_bitmaps(input_bitmap, target_bitmap, tolerance=0.02):  # Allow 2% tolerance
+                            matching_targets.append(i)
                 
                 if matching_targets:
                     input_to_targets[input_id] = (input_group, matching_targets)
@@ -863,7 +871,7 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
             
             if len(available_input_ids) >= len(target_subgroups):
                 # Limit the number of combinations to avoid exponential growth
-                max_combinations = 100  # Limit to prevent long computation
+                max_combinations = 500  # Increased from 100 to allow more thorough search
                 count = 0
                 for combo in combinations(available_input_ids, len(target_subgroups)):
                     if count >= max_combinations:
