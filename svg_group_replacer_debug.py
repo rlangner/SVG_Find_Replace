@@ -61,12 +61,61 @@ def svg_to_bitmap(svg_content, width=64, height=64):
         if isinstance(svg_content, ET.Element):
             # Get the outer group element and all its children
             group_element = svg_content
+            # Calculate the bounding box of the group
+            bbox = get_element_bbox(group_element)
+            min_x, min_y, max_x, max_y = bbox
+            
+            # If the bounding box is just (0,0,0,0), use a default size
+            if min_x == min_y == max_x == max_y == 0:
+                viewBox = "0 0 8666 8666"
+                view_min_x, view_min_y, view_width, view_height = 0, 0, 8666, 8666
+            else:
+                # Calculate the actual bounding box size
+                bbox_width = max_x - min_x
+                bbox_height = max_y - min_y
+                
+                # Ensure we have a minimum size to avoid division by zero
+                if bbox_width == 0:
+                    bbox_width = 1
+                if bbox_height == 0:
+                    bbox_height = 1
+                
+                # Create viewBox based on the actual bounding box
+                viewBox = f"{min_x} {min_y} {bbox_width} {bbox_height}"
+                view_min_x, view_min_y, view_width, view_height = min_x, min_y, bbox_width, bbox_height
+            
             # Create a temporary SVG with just this group
-            temp_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 8666 8666">{ET.tostring(group_element, encoding="unicode")}</svg>'
+            temp_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="{viewBox}">{ET.tostring(group_element, encoding="unicode")}</svg>'
         else:
             temp_svg = svg_content
             if not temp_svg.strip().startswith('<svg'):
-                temp_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 8666 8666">{temp_svg}</svg>'
+                # Calculate bounding box for the string content as well
+                try:
+                    temp_root = ET.fromstring(f'<svg xmlns="http://www.w3.org/2000/svg">{temp_svg}</svg>')
+                    # Find all groups in the temp content and calculate their bounding box
+                    bbox = get_element_bbox(temp_root)
+                    min_x, min_y, max_x, max_y = bbox
+                    
+                    if min_x == min_y == max_x == max_y == 0:
+                        viewBox = "0 0 8666 8666"
+                        view_min_x, view_min_y, view_width, view_height = 0, 0, 8666, 8666
+                    else:
+                        bbox_width = max_x - min_x
+                        bbox_height = max_y - min_y
+                        
+                        if bbox_width == 0:
+                            bbox_width = 1
+                        if bbox_height == 0:
+                            bbox_height = 1
+                        
+                        viewBox = f"{min_x} {min_y} {bbox_width} {bbox_height}"
+                        view_min_x, view_min_y, view_width, view_height = min_x, min_y, bbox_width, bbox_height
+                except:
+                    # If parsing fails, use default viewBox
+                    viewBox = "0 0 8666 8666"
+                    view_min_x, view_min_y, view_width, view_height = 0, 0, 8666, 8666
+                
+                temp_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="{viewBox}">{temp_svg}</svg>'
         
         # Parse the SVG content
         root = ET.fromstring(temp_svg)
@@ -77,7 +126,7 @@ def svg_to_bitmap(svg_content, width=64, height=64):
             
             if tag in ['path', 'line', 'rect', 'circle', 'ellipse', 'polygon', 'polyline']:
                 # Render the element to the grid
-                render_element_to_grid(elem, grid, width, height)
+                render_element_to_grid(elem, grid, width, height, view_min_x, view_min_y, view_width, view_height)
         
         return grid
     
@@ -87,7 +136,7 @@ def svg_to_bitmap(svg_content, width=64, height=64):
         return generate_geometric_signature(svg_content)
 
 
-def render_element_to_grid(element, grid, width, height):
+def render_element_to_grid(element, grid, width, height, view_min_x, view_min_y, view_width, view_height):
     """Render an SVG element to the grid."""
     tag = element.tag.split('}')[-1] if '}' in element.tag else element.tag  # Remove namespace
     
@@ -99,13 +148,13 @@ def render_element_to_grid(element, grid, width, height):
             for i in range(len(coords) - 1):
                 x1, y1 = coords[i]
                 x2, y2 = coords[i + 1]
-                draw_line_on_grid(grid, x1, y1, x2, y2, width, height)
+                draw_line_on_grid(grid, x1, y1, x2, y2, width, height, view_min_x, view_min_y, view_width, view_height)
             
             # For polygon, also draw line from last to first point
             if tag == 'polygon' and len(coords) > 2:
                 x1, y1 = coords[-1]
                 x2, y2 = coords[0]
-                draw_line_on_grid(grid, x1, y1, x2, y2, width, height)
+                draw_line_on_grid(grid, x1, y1, x2, y2, width, height, view_min_x, view_min_y, view_width, view_height)
                 
     elif tag == 'path':
         d = element.get('d', '')
@@ -116,14 +165,14 @@ def render_element_to_grid(element, grid, width, height):
         for i in range(len(coords) - 1):
             x1, y1 = coords[i]
             x2, y2 = coords[i + 1]
-            draw_line_on_grid(grid, x1, y1, x2, y2, width, height)
+            draw_line_on_grid(grid, x1, y1, x2, y2, width, height, view_min_x, view_min_y, view_width, view_height)
             
     elif tag == 'line':
         x1 = float(element.get('x1', 0))
         y1 = float(element.get('y1', 0))
         x2 = float(element.get('x2', 0))
         y2 = float(element.get('y2', 0))
-        draw_line_on_grid(grid, x1, y1, x2, y2, width, height)
+        draw_line_on_grid(grid, x1, y1, x2, y2, width, height, view_min_x, view_min_y, view_width, view_height)
         
     elif tag == 'rect':
         x = float(element.get('x', 0))
@@ -132,23 +181,23 @@ def render_element_to_grid(element, grid, width, height):
         height_attr = float(element.get('height', 0))
         # Draw the rectangle outline
         x2, y2 = x + width_attr, y + height_attr
-        draw_line_on_grid(grid, x, y, x2, y, width, height)  # top
-        draw_line_on_grid(grid, x2, y, x2, y2, width, height)  # right
-        draw_line_on_grid(grid, x2, y2, x, y2, width, height)  # bottom
-        draw_line_on_grid(grid, x, y2, x, y, width, height)  # left
+        draw_line_on_grid(grid, x, y, x2, y, width, height, view_min_x, view_min_y, view_width, view_height)  # top
+        draw_line_on_grid(grid, x2, y, x2, y2, width, height, view_min_x, view_min_y, view_width, view_height)  # right
+        draw_line_on_grid(grid, x2, y2, x, y2, width, height, view_min_x, view_min_y, view_width, view_height)  # bottom
+        draw_line_on_grid(grid, x, y2, x, y, width, height, view_min_x, view_min_y, view_width, view_height)  # left
         
     elif tag == 'circle':
         cx = float(element.get('cx', 0))
         cy = float(element.get('cy', 0))
         r = float(element.get('r', 0))
-        draw_circle_on_grid(grid, cx, cy, r, width, height)
+        draw_circle_on_grid(grid, cx, cy, r, width, height, view_min_x, view_min_y, view_width, view_height)
         
     elif tag == 'ellipse':
         cx = float(element.get('cx', 0))
         cy = float(element.get('cy', 0))
         rx = float(element.get('rx', 0))
         ry = float(element.get('ry', 0))
-        draw_ellipse_on_grid(grid, cx, cy, rx, ry, width, height)
+        draw_ellipse_on_grid(grid, cx, cy, rx, ry, width, height, view_min_x, view_min_y, view_width, view_height)
 
 
 def parse_path_commands(path_data):
@@ -175,17 +224,18 @@ def parse_path_commands(path_data):
     return commands
 
 
-def draw_line_on_grid(grid, x1, y1, x2, y2, grid_width, grid_height):
+def draw_line_on_grid(grid, x1, y1, x2, y2, grid_width, grid_height, view_min_x, view_min_y, view_width, view_height):
     """Draw a line on the grid using Bresenham's algorithm."""
-    # Map coordinates from SVG space to grid space
-    # Assuming SVG viewBox is 0,0 to 8666,8666
-    scale_x = grid_width / 8666.0
-    scale_y = grid_height / 8666.0
+    # Map coordinates from SVG space to grid space based on the actual viewBox
+    # Calculate the scale factors based on viewBox dimensions
+    scale_x = grid_width / view_width if view_width != 0 else 1.0
+    scale_y = grid_height / view_height if view_height != 0 else 1.0
     
-    x1 = int(x1 * scale_x)
-    y1 = int(y1 * scale_y)
-    x2 = int(x2 * scale_x)
-    y2 = int(y2 * scale_y)
+    # Adjust coordinates to be relative to the viewBox origin
+    x1 = int((x1 - view_min_x) * scale_x)
+    y1 = int((y1 - view_min_y) * scale_y)
+    x2 = int((x2 - view_min_x) * scale_x)
+    y2 = int((y2 - view_min_y) * scale_y)
     
     # Clamp to grid bounds
     x1 = max(0, min(grid_width - 1, x1))
@@ -218,13 +268,15 @@ def draw_line_on_grid(grid, x1, y1, x2, y2, grid_width, grid_height):
             y += sy
 
 
-def draw_circle_on_grid(grid, cx, cy, r, grid_width, grid_height):
+def draw_circle_on_grid(grid, cx, cy, r, grid_width, grid_height, view_min_x, view_min_y, view_width, view_height):
     """Draw a circle on the grid."""
-    scale_x = grid_width / 8666.0
-    scale_y = grid_height / 8666.0
+    # Calculate the scale factors based on viewBox dimensions
+    scale_x = grid_width / view_width if view_width != 0 else 1.0
+    scale_y = grid_height / view_height if view_height != 0 else 1.0
     
-    cx = int(cx * scale_x)
-    cy = int(cy * scale_y)
+    # Adjust coordinates to be relative to the viewBox origin
+    cx = int((cx - view_min_x) * scale_x)
+    cy = int((cy - view_min_y) * scale_y)
     r = int(r * min(scale_x, scale_y))
     
     # Midpoint circle algorithm
@@ -243,13 +295,15 @@ def draw_circle_on_grid(grid, cx, cy, r, grid_width, grid_height):
         x += 1
 
 
-def draw_ellipse_on_grid(grid, cx, cy, rx, ry, grid_width, grid_height):
+def draw_ellipse_on_grid(grid, cx, cy, rx, ry, grid_width, grid_height, view_min_x, view_min_y, view_width, view_height):
     """Draw an ellipse on the grid."""
-    scale_x = grid_width / 8666.0
-    scale_y = grid_height / 8666.0
+    # Calculate the scale factors based on viewBox dimensions
+    scale_x = grid_width / view_width if view_width != 0 else 1.0
+    scale_y = grid_height / view_height if view_height != 0 else 1.0
     
-    cx = int(cx * scale_x)
-    cy = int(cy * scale_y)
+    # Adjust coordinates to be relative to the viewBox origin
+    cx = int((cx - view_min_x) * scale_x)
+    cy = int((cy - view_min_y) * scale_y)
     rx = int(rx * scale_x)
     ry = int(ry * scale_y)
     
