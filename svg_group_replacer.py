@@ -53,6 +53,61 @@ def extract_coords_from_points(points_data):
     return coords
 
 
+def get_element_bbox(element):
+    """Get the bounding box of an SVG element by analyzing its child elements."""
+    min_x, min_y = float('inf'), float('inf')
+    max_x, max_y = float('-inf'), float('-inf')
+    
+    for child in element:
+        tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag  # Remove namespace
+        
+        if tag == 'polygon' or tag == 'polyline':
+            points = child.get('points', '')
+            coords = extract_coords_from_points(points)
+            for x, y in coords:
+                min_x, max_x = min(min_x, x), max(max_x, x)
+                min_y, max_y = min(min_y, y), max(max_y, y)
+        elif tag == 'path':
+            d = child.get('d', '')
+            coords = extract_coords_from_path(d)
+            for x, y in coords:
+                min_x, max_x = min(min_x, x), max(max_x, x)
+                min_y, max_y = min(min_y, y), max(max_y, y)
+        elif tag == 'rect':
+            x = float(child.get('x', 0))
+            y = float(child.get('y', 0))
+            width = float(child.get('width', 0))
+            height = float(child.get('height', 0))
+            min_x, max_x = min(min_x, x), max(max_x, x + width)
+            min_y, max_y = min(min_y, y), max(max_y, y + height)
+        elif tag == 'circle':
+            cx = float(child.get('cx', 0))
+            cy = float(child.get('cy', 0))
+            r = float(child.get('r', 0))
+            min_x, max_x = min(min_x, cx - r), max(max_x, cx + r)
+            min_y, max_y = min(min_y, cy - r), max(max_y, cy + r)
+        elif tag == 'ellipse':
+            cx = float(child.get('cx', 0))
+            cy = float(child.get('cy', 0))
+            rx = float(child.get('rx', 0))
+            ry = float(child.get('ry', 0))
+            min_x, max_x = min(min_x, cx - rx), max(max_x, cx + rx)
+            min_y, max_y = min(min_y, cy - ry), max(max_y, cy + ry)
+        elif tag in ['line']:
+            x1 = float(child.get('x1', 0))
+            y1 = float(child.get('y1', 0))
+            x2 = float(child.get('x2', 0))
+            y2 = float(child.get('y2', 0))
+            min_x, max_x = min(min_x, x1, x2), max(max_x, x1, x2)
+            min_y, max_y = min(min_y, y1, y2), max(max_y, y1, y2)
+    
+    # If no child elements were found, return a default bounding box
+    if min_x == float('inf'):
+        return (0, 0, 0, 0)
+    
+    return (min_x, min_y, max_x, max_y)
+
+
 def generate_geometric_signature(svg_content):
     """Generate a geometric signature of an SVG element based on its visual properties."""
     # Parse the SVG content if it's a string
@@ -461,23 +516,52 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
     print(f"Found {len(matches)} matches")
     
     # For each match, remove the matched input groups and add the replacement group
-    # while preserving the position of the first matched input group
+    # while preserving the position of the entire cluster of matched input groups
     for match in matches:
         input_group_ids = match['input_groups']
         replace_group = match['replace_group']
         
-        # Get the first matched input group to preserve its transform and position
-        first_input_group = input_groups[input_group_ids[0]]
-        original_transform = first_input_group.get('transform', '')
+        # Calculate the bounding box of all matched input groups
+        min_x, min_y = float('inf'), float('inf')
+        max_x, max_y = float('-inf'), float('-inf')
+        
+        for input_id in input_group_ids:
+            input_group = input_groups[input_id]
+            bbox = get_element_bbox(input_group)
+            min_x = min(min_x, bbox[0])
+            min_y = min(min_y, bbox[1])
+            max_x = max(max_x, bbox[2])
+            max_y = max(max_y, bbox[3])
+        
+        # Calculate the center of the original cluster
+        orig_center_x = (min_x + max_x) / 2
+        orig_center_y = (min_y + max_y) / 2
+        
+        # Calculate the bounding box of the replacement group
+        replace_bbox = get_element_bbox(replace_group)
+        replace_width = replace_bbox[2] - replace_bbox[0]
+        replace_height = replace_bbox[3] - replace_bbox[1]
+        
+        # Calculate the center of the replacement group
+        replace_center_x = (replace_bbox[0] + replace_bbox[2]) / 2
+        replace_center_y = (replace_bbox[1] + replace_bbox[3]) / 2
+        
+        # Calculate the translation needed to position the replacement group
+        # so that its center aligns with the original cluster center
+        translate_x = orig_center_x - replace_center_x
+        translate_y = orig_center_y - replace_center_y
         
         # Create a copy of the replacement group
         new_group = ET.fromstring(ET.tostring(replace_group, encoding='unicode'))
         
-        # Apply the original transform to maintain position and size
+        # Apply the calculated translation
+        transforms = []
+        original_transform = new_group.get('transform', '')
         if original_transform:
-            new_group.set('transform', original_transform)
-        elif 'transform' in new_group.attrib:
-            del new_group.attrib['transform']
+            transforms.append(original_transform)
+        transforms.append(f'translate({translate_x},{translate_y})')
+        
+        new_group.set('transform', ' '.join(transforms))
         
         # Add the new group to the root
         input_root.append(new_group)
