@@ -18,9 +18,317 @@ import re
 
 def svg_to_bitmap(svg_content, width=64, height=64):
     """Convert SVG content to a bitmap image for visual comparison."""
-    # Since we don't have CairoSVG or similar installed, 
-    # we'll generate a geometric signature based on the SVG content for comparison
-    return generate_geometric_signature(svg_content)
+    try:
+        # Import here to handle cases where it's not available
+        import xml.etree.ElementTree as ET
+        import math
+        
+        # Create a simple rendering system using a 2D grid
+        # We'll use a 64x64 grid to represent the image
+        grid = [[0 for _ in range(width)] for _ in range(height)]
+        
+        # If the svg_content is an element, convert it to string
+        if isinstance(svg_content, ET.Element):
+            # Get the outer group element and all its children
+            group_element = svg_content
+            # Create a temporary SVG with just this group
+            temp_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 8666 8666">{ET.tostring(group_element, encoding="unicode")}</svg>'
+        else:
+            temp_svg = svg_content
+            if not temp_svg.strip().startswith('<svg'):
+                temp_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 8666 8666">{temp_svg}</svg>'
+        
+        # Parse the SVG content
+        root = ET.fromstring(temp_svg)
+        
+        # Find all drawable elements within the SVG
+        for elem in root.iter():
+            tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag  # Remove namespace
+            
+            if tag in ['path', 'line', 'rect', 'circle', 'ellipse', 'polygon', 'polyline']:
+                # Render the element to the grid
+                render_element_to_grid(elem, grid, width, height)
+        
+        return grid
+    
+    except Exception as e:
+        print(f"Error converting SVG to bitmap: {e}")
+        # Return a simple hash-based signature as fallback
+        return generate_geometric_signature(svg_content)
+
+
+def render_element_to_grid(element, grid, width, height):
+    """Render an SVG element to the grid."""
+    tag = element.tag.split('}')[-1] if '}' in element.tag else element.tag  # Remove namespace
+    
+    if tag == 'polygon' or tag == 'polyline':
+        points = element.get('points', '')
+        coords = extract_coords_from_points(points)
+        if len(coords) >= 2:
+            # Draw lines between consecutive points
+            for i in range(len(coords) - 1):
+                x1, y1 = coords[i]
+                x2, y2 = coords[i + 1]
+                draw_line_on_grid(grid, x1, y1, x2, y2, width, height)
+            
+            # For polygon, also draw line from last to first point
+            if tag == 'polygon' and len(coords) > 2:
+                x1, y1 = coords[-1]
+                x2, y2 = coords[0]
+                draw_line_on_grid(grid, x1, y1, x2, y2, width, height)
+                
+    elif tag == 'path':
+        d = element.get('d', '')
+        # For now, just extract coordinates and draw basic shapes
+        path_commands = parse_path_commands(d)
+        coords = extract_coords_from_path(d)
+        # Draw lines between coordinates
+        for i in range(len(coords) - 1):
+            x1, y1 = coords[i]
+            x2, y2 = coords[i + 1]
+            draw_line_on_grid(grid, x1, y1, x2, y2, width, height)
+            
+    elif tag == 'line':
+        x1 = float(element.get('x1', 0))
+        y1 = float(element.get('y1', 0))
+        x2 = float(element.get('x2', 0))
+        y2 = float(element.get('y2', 0))
+        draw_line_on_grid(grid, x1, y1, x2, y2, width, height)
+        
+    elif tag == 'rect':
+        x = float(element.get('x', 0))
+        y = float(element.get('y', 0))
+        width_attr = float(element.get('width', 0))
+        height_attr = float(element.get('height', 0))
+        # Draw the rectangle outline
+        x2, y2 = x + width_attr, y + height_attr
+        draw_line_on_grid(grid, x, y, x2, y, width, height)  # top
+        draw_line_on_grid(grid, x2, y, x2, y2, width, height)  # right
+        draw_line_on_grid(grid, x2, y2, x, y2, width, height)  # bottom
+        draw_line_on_grid(grid, x, y2, x, y, width, height)  # left
+        
+    elif tag == 'circle':
+        cx = float(element.get('cx', 0))
+        cy = float(element.get('cy', 0))
+        r = float(element.get('r', 0))
+        draw_circle_on_grid(grid, cx, cy, r, width, height)
+        
+    elif tag == 'ellipse':
+        cx = float(element.get('cx', 0))
+        cy = float(element.get('cy', 0))
+        rx = float(element.get('rx', 0))
+        ry = float(element.get('ry', 0))
+        draw_ellipse_on_grid(grid, cx, cy, rx, ry, width, height)
+
+
+def parse_path_commands(path_data):
+    """Parse SVG path data into commands and coordinates."""
+    import re
+    # This is a simplified parser for basic path commands
+    commands = []
+    tokens = re.findall(r'[MmLlHhVvZzCcSsQqTtAa]|[+-]?\d*\.?\d+', path_data)
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        if token in 'MmLlHhVvZzCcSsQqTtAa':
+            commands.append((token, []))
+            i += 1
+            # Collect coordinates for this command
+            while i < len(tokens) and tokens[i] not in 'MmLlHhVvZzCcSsQqTtAa':
+                try:
+                    commands[-1][1].append(float(tokens[i]))
+                except ValueError:
+                    pass
+                i += 1
+        else:
+            i += 1
+    return commands
+
+
+def draw_line_on_grid(grid, x1, y1, x2, y2, grid_width, grid_height):
+    """Draw a line on the grid using Bresenham's algorithm."""
+    # Map coordinates from SVG space to grid space
+    # Assuming SVG viewBox is 0,0 to 8666,8666
+    scale_x = grid_width / 8666.0
+    scale_y = grid_height / 8666.0
+    
+    x1 = int(x1 * scale_x)
+    y1 = int(y1 * scale_y)
+    x2 = int(x2 * scale_x)
+    y2 = int(y2 * scale_y)
+    
+    # Clamp to grid bounds
+    x1 = max(0, min(grid_width - 1, x1))
+    y1 = max(0, min(grid_height - 1, y1))
+    x2 = max(0, min(grid_width - 1, x2))
+    y2 = max(0, min(grid_height - 1, y2))
+    
+    # Bresenham's line algorithm
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+    sx = 1 if x1 < x2 else -1
+    sy = 1 if y1 < y2 else -1
+    err = dx - dy
+    
+    x, y = x1, y1
+    
+    while True:
+        if 0 <= x < grid_width and 0 <= y < grid_height:
+            grid[y][x] = 1  # Mark pixel as drawn
+        
+        if x == x2 and y == y2:
+            break
+            
+        e2 = 2 * err
+        if e2 > -dy:
+            err -= dy
+            x += sx
+        if e2 < dx:
+            err += dx
+            y += sy
+
+
+def draw_circle_on_grid(grid, cx, cy, r, grid_width, grid_height):
+    """Draw a circle on the grid."""
+    scale_x = grid_width / 8666.0
+    scale_y = grid_height / 8666.0
+    
+    cx = int(cx * scale_x)
+    cy = int(cy * scale_y)
+    r = int(r * min(scale_x, scale_y))
+    
+    # Midpoint circle algorithm
+    x = 0
+    y = r
+    d = 3 - 2 * r
+    
+    while x <= y:
+        # Draw 8 symmetric points
+        draw_circle_points(grid, cx, cy, x, y, grid_width, grid_height)
+        if d < 0:
+            d = d + 4 * x + 6
+        else:
+            d = d + 4 * (x - y) + 10
+            y -= 1
+        x += 1
+
+
+def draw_ellipse_on_grid(grid, cx, cy, rx, ry, grid_width, grid_height):
+    """Draw an ellipse on the grid."""
+    scale_x = grid_width / 8666.0
+    scale_y = grid_height / 8666.0
+    
+    cx = int(cx * scale_x)
+    cy = int(cy * scale_y)
+    rx = int(rx * scale_x)
+    ry = int(ry * scale_y)
+    
+    # Draw ellipse using parametric equations
+    for angle in range(0, 360, 5):  # Every 5 degrees
+        rad = math.radians(angle)
+        x = int(cx + rx * math.cos(rad))
+        y = int(cy + ry * math.sin(rad))
+        if 0 <= x < grid_width and 0 <= y < grid_height:
+            grid[y][x] = 1
+
+
+def draw_circle_points(grid, cx, cy, x, y, grid_width, grid_height):
+    """Draw 8 symmetric points of a circle."""
+    points = [
+        (cx + x, cy + y), (cx - x, cy + y), (cx + x, cy - y), (cx - x, cy - y),
+        (cx + y, cy + x), (cx - y, cy + x), (cx + y, cy - x), (cx - y, cy - x)
+    ]
+    
+    for px, py in points:
+        if 0 <= px < grid_width and 0 <= py < grid_height:
+            grid[py][px] = 1
+
+
+def compare_bitmaps(bitmap1, bitmap2, tolerance=0.1):
+    """Compare two bitmap grids for similarity."""
+    if not bitmap1 or not bitmap2:
+        return False
+    
+    if len(bitmap1) != len(bitmap2) or len(bitmap1[0]) != len(bitmap2[0]):
+        return False
+    
+    height = len(bitmap1)
+    width = len(bitmap1[0])
+    
+    # Count matching pixels
+    matches = 0
+    total_pixels = 0
+    
+    for y in range(height):
+        for x in range(width):
+            total_pixels += 1
+            if bitmap1[y][x] == bitmap2[y][x]:
+                matches += 1
+    
+    similarity = matches / total_pixels if total_pixels > 0 else 0
+    return similarity >= (1 - tolerance)
+
+
+def get_simple_visual_signature(group_element):
+    """Generate a simple visual signature that's more efficient for matching."""
+    # Count different types of elements and their properties
+    signature_parts = []
+    
+    for child in group_element:
+        tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag  # Remove namespace
+        
+        if tag in ['path', 'line', 'rect', 'circle', 'ellipse', 'polygon', 'polyline']:
+            # Create a signature based on element type and simple properties
+            if tag == 'polygon' or tag == 'polyline':
+                points = child.get('points', '')
+                coords = extract_coords_from_points(points)
+                if coords:
+                    # Use bounding box as signature
+                    xs = [x for x, y in coords]
+                    ys = [y for x, y in coords]
+                    min_x, max_x = min(xs), max(xs)
+                    min_y, max_y = min(ys), max(ys)
+                    width = max_x - min_x
+                    height = max_y - min_y
+                    center_x = (min_x + max_x) / 2
+                    center_y = (min_y + max_y) / 2
+                    signature_parts.append((tag, round(width, 1), round(height, 1), len(coords), round(center_x, 1), round(center_y, 1)))
+            elif tag == 'path':
+                d = child.get('d', '')
+                # Count path commands as signature
+                path_commands = re.findall(r'[MmLlHhVvZzCcSsQqTtAa]', d)
+                command_counts = {}
+                for cmd in path_commands:
+                    command_counts[cmd] = command_counts.get(cmd, 0) + 1
+                signature_parts.append((tag, tuple(sorted(command_counts.items())), len(d)))
+            elif tag == 'line':
+                x1 = round(float(child.get('x1', 0)), 1)
+                y1 = round(float(child.get('y1', 0)), 1)
+                x2 = round(float(child.get('x2', 0)), 1)
+                y2 = round(float(child.get('y2', 0)), 1)
+                length = round(((x2-x1)**2 + (y2-y1)**2)**0.5, 1)
+                signature_parts.append((tag, length, x1, y1, x2, y2))
+            elif tag == 'rect':
+                x = round(float(child.get('x', 0)), 1)
+                y = round(float(child.get('y', 0)), 1)
+                width = round(float(child.get('width', 0)), 1)
+                height = round(float(child.get('height', 0)), 1)
+                signature_parts.append((tag, width, height, x, y))
+            elif tag == 'circle':
+                cx = round(float(child.get('cx', 0)), 1)
+                cy = round(float(child.get('cy', 0)), 1)
+                r = round(float(child.get('r', 0)), 1)
+                signature_parts.append((tag, r, cx, cy))
+            elif tag == 'ellipse':
+                cx = round(float(child.get('cx', 0)), 1)
+                cy = round(float(child.get('cy', 0)), 1)
+                rx = round(float(child.get('rx', 0)), 1)
+                ry = round(float(child.get('ry', 0)), 1)
+                signature_parts.append((tag, rx, ry, cx, cy))
+    
+    # Sort to make signature order-independent
+    signature_parts.sort()
+    return tuple(signature_parts)
 
 
 def extract_coords_from_path(path_data):
@@ -279,13 +587,13 @@ def find_subgroups(group_element):
 
 
 def compare_groups_visual(group1, group2, tolerance=0.1):
-    """Compare two SVG groups visually by comparing their geometric signatures."""
-    # Generate signatures for both groups
-    sig1 = generate_geometric_signature(group1)
-    sig2 = generate_geometric_signature(group2)
+    """Compare two SVG groups visually by comparing their bitmap representations."""
+    # Generate bitmaps for both groups
+    bitmap1 = svg_to_bitmap(group1)
+    bitmap2 = svg_to_bitmap(group2)
     
-    # Compare the signatures for similarity
-    return compare_signatures(sig1, sig2, tolerance)
+    # Compare the bitmaps for similarity
+    return compare_bitmaps(bitmap1, bitmap2, tolerance)
 
 
 def compare_signatures(sig1, sig2, tolerance=0.1):
@@ -389,22 +697,22 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
             # If no subgroups, treat the entire lookup group as the target
             print(f"Looking for full group matching {lookup_id}")
             
-            # Create signature for the entire lookup group
-            target_signature = generate_geometric_signature(lookup_group)
-            print(f"  Target signature: {target_signature}")
+            # Create bitmap for the entire lookup group
+            target_bitmap = svg_to_bitmap(lookup_group)
+            print(f"  Target bitmap generated with dimensions: {len(target_bitmap) if target_bitmap else 0}x{len(target_bitmap[0]) if target_bitmap and target_bitmap[0] else 0}")
             
-            # Look for input groups that match this signature
+            # Look for input groups that match this bitmap
             matched_input_groups = []
             for input_id, input_group in input_groups.items():
                 if input_id in used_input_ids:
                     continue
                 
-                input_sig = generate_geometric_signature(input_group)
+                input_bitmap = svg_to_bitmap(input_group)
                 
                 # Check if this input group matches the target
-                if compare_signatures(input_sig, target_signature):
+                if compare_bitmaps(input_bitmap, target_bitmap):
                     matched_input_groups.append((input_id, input_group))
-                    print(f"  Input {input_id} matches target signature")
+                    print(f"  Input {input_id} matches target bitmap")
             
             if matched_input_groups:
                 # Get transform from the first matched group as reference
@@ -426,16 +734,16 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
                     
                     print(f"Found match: {input_id} matches {lookup_id}")
             else:
-                print(f"  No input groups matched target signature")
+                print(f"  No input groups matched target bitmap")
         else:
-            # We have subgroups to match - match based on geometric signatures and spatial arrangement
+            # We have subgroups to match - match based on visual signatures and spatial arrangement
             print(f"Looking for {len(target_subgroups)} subgroups matching {lookup_id}")
             
-            # Create signatures for all target subgroups
+            # Create simple visual signatures for all target subgroups
             target_signatures = []
             target_bboxes = []
             for i, target_subgroup in enumerate(target_subgroups):
-                sig = generate_geometric_signature(target_subgroup)
+                sig = get_simple_visual_signature(target_subgroup)
                 target_signatures.append(sig)
                 
                 # Get the bounding box of the target subgroup
@@ -530,12 +838,12 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
             for input_id, input_group in input_groups.items():
                 if input_id in used_input_ids:
                     continue
-                input_sig = generate_geometric_signature(input_group)
+                input_sig = get_simple_visual_signature(input_group)
                 
                 # Check if this input group matches any of the target subgroups
                 matching_targets = []
                 for i, target_sig in enumerate(target_signatures):
-                    if compare_signatures(input_sig, target_sig):
+                    if input_sig == target_sig:  # Direct signature comparison for efficiency
                         matching_targets.append(i)
                 
                 if matching_targets:
@@ -544,7 +852,8 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
             
             print(f"  Found {len(input_to_targets)} potential input matches")
             
-            # Group potential matches by spatial proximity to form clusters
+            # Instead of checking all combinations, find clusters of input groups that match
+            # all target subgroups and have similar spatial relationships
             from itertools import combinations
             
             potential_clusters = []
@@ -553,9 +862,16 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
             available_input_ids = list(input_to_targets.keys())
             
             if len(available_input_ids) >= len(target_subgroups):
-                # Find all possible combinations of input groups that match the required number of target subgroups
+                # Limit the number of combinations to avoid exponential growth
+                max_combinations = 100  # Limit to prevent long computation
+                count = 0
                 for combo in combinations(available_input_ids, len(target_subgroups)):
-                    # Check if this combination could match all target subgroups
+                    if count >= max_combinations:
+                        print(f"  Reached maximum combination limit ({max_combinations}), stopping search")
+                        break
+                    count += 1
+                    
+                    # Check if this combination covers all target subgroups
                     combo_targets = set()
                     for input_id in combo:
                         _, possible_targets = input_to_targets[input_id]
