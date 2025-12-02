@@ -573,8 +573,16 @@ def main(input_svg_path, lookup_svg_path, output_svg_path):
         # Create a copy of the replacement group
         new_group = ET.fromstring(ET.tostring(replace_group, encoding='unicode'))
         
-        # Apply the same transform as the original group to preserve position
-        new_transform = f'translate({input_tx},{input_ty})'
+        # Get the original transform from the replacement group
+        original_transform = replace_group.get('transform', '')
+        
+        # Apply the position translation while preserving the original transform
+        if original_transform:
+            # If there's an original transform, combine it with the translation
+            new_transform = f'translate({input_tx},{input_ty}) {original_transform}'
+        else:
+            # If no original transform, just use the translation
+            new_transform = f'translate({input_tx},{input_ty})'
         
         new_group.set('transform', new_transform)
         

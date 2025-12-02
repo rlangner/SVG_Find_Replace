@@ -25,12 +25,34 @@ node_modules/
 .idea/
 
 # Coverage
-.coverage
 coverage/
 htmlcov/
+.coverage
+
+# Python specific
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.so
 
 # Distribution / packaging
+.Python
+*.so
+.Python
+*.pyc
+__pycache__/
+*$py.class
+*$py.py
+*$py.pyc
+*$py.pyo
+*$py.so
+*.egg-info/
+.egg-info/
 dist/
 build/
-*.egg-info/
+*.egg
+*.tar.gz
+*.whl
 ```
