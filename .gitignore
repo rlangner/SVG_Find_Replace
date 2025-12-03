@@ -1,4 +1,6 @@
 ```
-# Generated from backup file
-svg_group_replacer_backup.py
+# Generated ignores
+*.svg
+
+# Preserve any existing rules
 ```
