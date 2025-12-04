@@ -289,15 +289,32 @@ def normalize_path_content(path_element: Element) -> str:
             if rgb_match:
                 r, g, b = map(int, rgb_match.groups())
                 return f"#{r:02x}{g:02x}{b:02x}".upper()
+        elif full_match.startswith('#'):
+            # Convert hex to rgb format for consistency
+            hex_color = full_match[1:]
+            if len(hex_color) == 3:
+                hex_color = ''.join([c*2 for c in hex_color])  # Expand shorthand
+            if len(hex_color) == 6:
+                try:
+                    r = int(hex_color[0:2], 16)
+                    g = int(hex_color[2:4], 16)
+                    b = int(hex_color[4:6], 16)
+                    return f"rgb({r},{g},{b})"
+                except ValueError:
+                    pass
         return full_match
     
-    # Find and replace rgb colors with hex colors
+    # Find and replace rgb/hex colors with a consistent format (rgb)
     content = re.sub(r'rgb\\(\\d+,\\d+,\\d+\\)', normalize_color, content)
+    content = re.sub(r'#[0-9a-fA-F]{3,6}', normalize_color, content)
     
     # Extract path coordinates and normalize them to canonical representation
     def extract_and_sort_path_coords(path_d):
         # This function converts path data to a canonical form by extracting coordinates
         import re
+        
+        # Convert relative path commands to absolute for comparison
+        path_d = convert_relative_to_absolute(path_d)
         
         # Extract all coordinate pairs from the path data
         coords = re.findall(r'[-+]?\\d*\\.?\\d+', path_d)
@@ -318,6 +335,207 @@ def normalize_path_content(path_element: Element) -> str:
         # Create a canonical string representation
         canonical_coords = ' '.join([f"{x:.3f},{y:.3f}" for x, y in coord_pairs])
         return canonical_coords
+    
+    # Convert relative path commands to absolute coordinates
+    def convert_relative_to_absolute(path_d):
+        # Parse path data and convert relative commands to absolute
+        import re
+        
+        # Split path into commands and coordinates
+        result = []
+        i = 0
+        current_x, current_y = 0, 0
+        start_x, start_y = 0, 0
+        
+        # Clean up the path string
+        path_d = re.sub(r'\s+', ' ', path_d.strip())
+        
+        while i < len(path_d):
+            char = path_d[i]
+            if char.isspace():
+                i += 1
+                continue
+            elif char.isalpha():
+                # Found a command
+                command = char
+                i += 1
+                # Collect coordinates for this command
+                coords = []
+                while i < len(path_d):
+                    if path_d[i].isspace():
+                        i += 1
+                        continue
+                    elif path_d[i].isalpha() and path_d[i] not in 'eE':
+                        # New command
+                        break
+                    else:
+                        # Collect the number
+                        num_str = ''
+                        while i < len(path_d) and (path_d[i].isdigit() or path_d[i] in '.-+eE'):
+                            num_str += path_d[i]
+                            i += 1
+                        if num_str:
+                            try:
+                                coords.append(float(num_str))
+                            except ValueError:
+                                pass
+                        else:
+                            i += 1
+                        # Skip whitespace after number
+                        while i < len(path_d) and path_d[i].isspace():
+                            i += 1
+                
+                # Process the command and coordinates
+                if command.upper() == 'M':
+                    if command.isupper():  # Absolute
+                        current_x, current_y = coords[0], coords[1]
+                        start_x, start_y = current_x, current_y
+                        result.append(f"M {current_x:.3f} {current_y:.3f}")
+                    else:  # Relative
+                        current_x += coords[0]
+                        current_y += coords[1]
+                        start_x, start_y = current_x, current_y
+                        result.append(f"M {current_x:.3f} {current_y:.3f}")
+                    if len(coords) > 2:  # Multiple coordinates in one M command
+                        for j in range(2, len(coords), 2):
+                            if j + 1 < len(coords):
+                                if command.islower():
+                                    current_x += coords[j]
+                                    current_y += coords[j+1]
+                                else:
+                                    current_x, current_y = coords[j], coords[j+1]
+                                result.append(f"L {current_x:.3f} {current_y:.3f}")
+                elif command.upper() == 'L':
+                    for j in range(0, len(coords), 2):
+                        if j + 1 < len(coords):
+                            if command.islower():
+                                current_x += coords[j]
+                                current_y += coords[j+1]
+                            else:
+                                current_x, current_y = coords[j], coords[j+1]
+                            result.append(f"L {current_x:.3f} {current_y:.3f}")
+                elif command.upper() == 'H':
+                    for j in range(len(coords)):
+                        if command.islower():
+                            current_x += coords[j]
+                        else:
+                            current_x = coords[j]
+                        result.append(f"L {current_x:.3f} {current_y:.3f}")
+                elif command.upper() == 'V':
+                    for j in range(len(coords)):
+                        if command.islower():
+                            current_y += coords[j]
+                        else:
+                            current_y = coords[j]
+                        result.append(f"L {current_x:.3f} {current_y:.3f}")
+                elif command.upper() == 'Z':
+                    current_x, current_y = start_x, start_y
+                    result.append('Z')
+                elif command.upper() == 'C':
+                    for j in range(0, len(coords), 6):
+                        if j + 5 < len(coords):
+                            if command.islower():
+                                x1, y1 = current_x + coords[j], current_y + coords[j+1]
+                                x2, y2 = current_x + coords[j+2], current_y + coords[j+3]
+                                x, y = current_x + coords[j+4], current_y + coords[j+5]
+                            else:
+                                x1, y1 = coords[j], coords[j+1]
+                                x2, y2 = coords[j+2], coords[j+3]
+                                x, y = coords[j+4], coords[j+5]
+                            current_x, current_y = x, y
+                            result.append(f"C {x1:.3f} {y1:.3f} {x2:.3f} {y2:.3f} {current_x:.3f} {current_y:.3f}")
+                elif command.upper() == 'S':
+                    for j in range(0, len(coords), 4):
+                        if j + 3 < len(coords):
+                            if command.islower():
+                                x2, y2 = current_x + coords[j], current_y + coords[j+1]
+                                x, y = current_x + coords[j+2], current_y + coords[j+3]
+                            else:
+                                x2, y2 = coords[j], coords[j+1]
+                                x, y = coords[j+2], coords[j+3]
+                            current_x, current_y = x, y
+                            result.append(f"S {x2:.3f} {y2:.3f} {current_x:.3f} {current_y:.3f}")
+                elif command.upper() == 'Q':
+                    for j in range(0, len(coords), 4):
+                        if j + 3 < len(coords):
+                            if command.islower():
+                                x1, y1 = current_x + coords[j], current_y + coords[j+1]
+                                x, y = current_x + coords[j+2], current_y + coords[j+3]
+                            else:
+                                x1, y1 = coords[j], coords[j+1]
+                                x, y = coords[j+2], coords[j+3]
+                            current_x, current_y = x, y
+                            result.append(f"Q {x1:.3f} {y1:.3f} {current_x:.3f} {current_y:.3f}")
+                elif command.upper() == 'T':
+                    for j in range(0, len(coords), 2):
+                        if j + 1 < len(coords):
+                            if command.islower():
+                                x, y = current_x + coords[j], current_y + coords[j+1]
+                            else:
+                                x, y = coords[j], coords[j+1]
+                            current_x, current_y = x, y
+                            result.append(f"T {current_x:.3f} {current_y:.3f}")
+                elif command.upper() == 'A':
+                    for j in range(0, len(coords), 7):
+                        if j + 6 < len(coords):
+                            if command.islower():
+                                rx, ry = coords[j], coords[j+1]
+                                x_axis_rotation = coords[j+2]
+                                large_arc_flag = coords[j+3]
+                                sweep_flag = coords[j+4]
+                                x = current_x + coords[j+5]
+                                y = current_y + coords[j+6]
+                            else:
+                                rx, ry = coords[j], coords[j+1]
+                                x_axis_rotation = coords[j+2]
+                                large_arc_flag = coords[j+3]
+                                sweep_flag = coords[j+4]
+                                x, y = coords[j+5], coords[j+6]
+                            current_x, current_y = x, y
+                            result.append(f"A {rx:.3f} {ry:.3f} {x_axis_rotation:.3f} {large_arc_flag:.3f} {sweep_flag:.3f} {current_x:.3f} {current_y:.3f}")
+                else:  # Other commands like 'm', 'l', etc. treated as line to
+                    if command.lower() == 'm':
+                        for j in range(0, len(coords), 2):
+                            if j + 1 < len(coords):
+                                if command.islower():
+                                    current_x += coords[j]
+                                    current_y += coords[j+1]
+                                else:
+                                    current_x, current_y = coords[j], coords[j+1]
+                                if j == 0:
+                                    result.append(f"M {current_x:.3f} {current_y:.3f}")
+                                else:
+                                    result.append(f"L {current_x:.3f} {current_y:.3f}")
+                                if j == 0:
+                                    start_x, start_y = current_x, current_y
+                    elif command.lower() == 'l' or command.lower() == 't':
+                        for j in range(0, len(coords), 2):
+                            if j + 1 < len(coords):
+                                if command.islower():
+                                    current_x += coords[j]
+                                    current_y += coords[j+1]
+                                else:
+                                    current_x, current_y = coords[j], coords[j+1]
+                                result.append(f"L {current_x:.3f} {current_y:.3f}")
+                    elif command.lower() == 'h':
+                        for j in range(len(coords)):
+                            if command.islower():
+                                current_x += coords[j]
+                            else:
+                                current_x = coords[j]
+                            result.append(f"L {current_x:.3f} {current_y:.3f}")
+                    elif command.lower() == 'v':
+                        for j in range(len(coords)):
+                            if command.islower():
+                                current_y += coords[j]
+                            else:
+                                current_y = coords[j]
+                            result.append(f"L {current_x:.3f} {current_y:.3f}")
+                    elif command.lower() == 'z':
+                        current_x, current_y = start_x, start_y
+                        result.append('Z')
+        
+        return ' '.join(result)
     
     # Apply coordinate normalization to path data
     def normalize_path_coords(match):
@@ -657,6 +875,15 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
                 # If the candidate groups contain all the path elements from the find group (and maybe more)
                 print(f"Found matching sequence containing find group path elements: {find_id}")
                 matching_input_groups.append(candidate_groups)
+            else:
+                # Additional check: see if the shapes are similar by comparing structure more loosely
+                # This is especially important when dealing with relative vs absolute coordinates
+                find_shape_signature = create_shape_signature(normalized_find_paths)
+                candidate_shape_signature = create_shape_signature(normalized_candidate_paths)
+                
+                if find_shape_signature == candidate_shape_signature:
+                    print(f"Found matching sequence based on shape signature for {find_id}")
+                    matching_input_groups.append(candidate_groups)
 
         print(f"Found {len(matching_input_groups)} candidate group sequences for {find_id}")
         
@@ -667,6 +894,40 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
             matches.append((input_group_sequence, find_id))
 
     return matches
+
+
+def create_shape_signature(path_contents):
+    """
+    Create a signature of shapes by counting types and attributes.
+    This helps match paths that have different coordinate representations but same structure.
+    """
+    signature = {}
+    for content in path_contents:
+        # Count different element types
+        if 'path' in content:
+            key = 'path'
+        elif 'polygon' in content:
+            key = 'polygon'
+        elif 'polyline' in content:
+            key = 'polyline'
+        else:
+            key = 'other'
+        
+        # Count by element type and stroke/fill attributes
+        stroke_match = re.search(r'stroke="([^"]*)"', content)
+        fill_match = re.search(r'fill="([^"]*)"', content)
+        
+        stroke = stroke_match.group(1) if stroke_match else 'none'
+        fill = fill_match.group(1) if fill_match else 'none'
+        
+        # Normalize colors for comparison
+        stroke = normalize_color(stroke)
+        fill = normalize_color(fill)
+        
+        attr_key = f"{key}_{stroke}_{fill}"
+        signature[attr_key] = signature.get(attr_key, 0) + 1
+    
+    return signature
 
 def get_group_transform(group: Element) -> str:
     """
