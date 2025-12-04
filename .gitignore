@@ -1,5 +1,1 @@
-```
-# Build artifacts
-*.svg
-
-```
+Nothing should be ignored based on the provided file changes. The changes only include source code files (.py files) which should not be added to .gitignore.
