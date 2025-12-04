@@ -1,0 +1,62 @@
+<g xmlns="http://www.w3.org/2000/svg" id="find_001" transform="translate(-379.9271,-544.1213)">
+    <g clip-path="url(#clipId0-2)" fill="#ffffff" stroke="#ffffff" stroke-width="0.75" id="g6728" transform="translate(-4325.2729,-3771.6487)">
+<polygon points="4706.7,4317.27 4736.7,4317.27 4736.7,4347.27 4706.7,4347.27 " id="polygon6727"/>
+
+</g>
+    <g clip-path="url(#clipId0-2)" fill="none" stroke="#260000" stroke-width="0.75" id="g6731" transform="translate(-4325.2729,-3771.6487)">
+<polyline points="4706.7,4317.27 4736.7,4317.27 " id="polyline6728"/>
+
+<polyline points="4736.7,4317.27 4736.7,4347.27 " id="polyline6729"/>
+
+<polyline points="4736.7,4347.27 4706.7,4347.27 " id="polyline6730"/>
+
+<polyline points="4706.7,4347.27 4706.7,4317.27 " id="polyline6731"/>
+
+</g>
+    <g clip-path="url(#clipId0-2)" fill="#130026" stroke="#130026" stroke-width="3" id="g6748" transform="translate(-4325.2729,-3771.6487)" style="stroke-linejoin:round">
+<path d="m 4706.7,4347.27 v -30 l 4.5,30 z" id="path6731" style="stroke-linejoin:round"/>
+
+<path d="m 4711.2,4326.27 -4.5,-9 h 4.5 z" id="path6732" style="stroke-linejoin:round"/>
+
+<path d="m 4711.2,4347.27 v -9 l 12,9 z" id="path6733" style="stroke-linejoin:round"/>
+
+<path d="m 4723.2,4347.27 -12,-9 h 12 z" id="path6734" style="stroke-linejoin:round"/>
+
+<path d="m 4711.2,4326.27 v -9 l 12,9 z" id="path6735" style="stroke-linejoin:round"/>
+
+<path d="m 4723.2,4326.27 -12,-9 h 12 z" id="path6736" style="stroke-linejoin:round"/>
+
+<path d="m 4723.2,4338.27 v -6 l 9,15 z" id="path6737" style="stroke-linejoin:round"/>
+
+<path d="m 4732.2,4347.27 -9,-15 9,6 z" id="path6738" style="stroke-linejoin:round"/>
+
+<path d="m 4723.2,4326.27 v -9 l 9,9 z" id="path6739" style="stroke-linejoin:round"/>
+
+<path d="m 4732.2,4326.27 -9,-9 h 9 z" id="path6740" style="stroke-linejoin:round"/>
+
+<path d="m 4732.2,4326.27 v -9 l 4.5,30 z" id="path6741" style="stroke-linejoin:round"/>
+
+<path d="m 4736.7,4347.27 -4.5,-30 h 4.5 z" id="path6742" style="stroke-linejoin:round"/>
+
+<path d="m 4711.2,4347.27 -4.5,-30 4.5,21 z" id="path6743" style="stroke-linejoin:round"/>
+
+<path d="m 4711.2,4338.27 -4.5,-21 4.5,9 z" id="path6744" style="stroke-linejoin:round"/>
+
+<path d="m 4723.2,4347.27 v -9 l 9,9 z" id="path6745" style="stroke-linejoin:round"/>
+
+<path d="m 4723.2,4332.27 v -6 h 9 z" id="path6746" style="stroke-linejoin:round"/>
+
+<path d="m 4732.2,4347.27 v -9 l 4.5,9 z" id="path6747" style="stroke-linejoin:round"/>
+
+<path d="m 4732.2,4338.27 v -12 l 4.5,21 z" id="path6748" style="stroke-linejoin:round"/>
+
+</g>
+    <g clip-path="url(#clipId0-2)" fill="none" stroke="#df7fff" stroke-width="0.75" id="g6750" transform="translate(-4325.2729,-3771.6487)">
+<polyline points="4711.2,4338.27 4723.2,4338.27 4723.2,4326.27 4711.2,4326.27 4711.2,4338.27 " id="polyline6748"/>
+
+<polyline points="4723.2,4332.27 4732.2,4326.27 4732.2,4338.27 4723.2,4332.27 " id="polyline6749"/>
+
+<polyline points="4706.7,4347.27 4736.7,4347.27 4736.7,4317.27 4706.7,4317.27 4706.7,4347.27 " id="polyline6750"/>
+
+</g>
+  </g>
