@@ -318,19 +318,17 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
 
 def main():
     """Main function to run the script."""
-    if len(sys.argv) != 3:
-        print("Usage: python svg_replacer.py <input.svg> <lookup.svg>")
+    if len(sys.argv) != 4:
+        print("Usage: python svg_replacer.py <input.svg> <lookup.svg> <output.svg>")
         sys.exit(1)
     
     input_svg = sys.argv[1]
     lookup_svg = sys.argv[2]
-    output_svg = "output.svg"
+    output_svg = sys.argv[3]
     
     replace_groups_in_svg(input_svg, lookup_svg, output_svg)
     print("Processing complete!")
 
 
 if __name__ == "__main__":
-    # Use the specific files provided in the workspace
-    replace_groups_in_svg('/workspace/input.svg', '/workspace/lookup.svg', '/workspace/output.svg')
-    print("Processing complete! Output saved to /workspace/output.svg")
+    main()
