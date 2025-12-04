@@ -24,18 +24,89 @@ def normalize_svg_content(element: Element) -> str:
     elem_copy = copy.deepcopy(element)
     
     # Remove attributes that shouldn't affect visual matching
-    for attr in ['id', 'class', 'style']:
+    for attr in ['id', 'class', 'style', 'transform']:
         if attr in elem_copy.attrib:
             del elem_copy.attrib[attr]
     
     # Remove IDs from all child elements too
     for child in elem_copy.iter():
-        for attr in ['id', 'class', 'style']:
+        for attr in ['id', 'class', 'style', 'transform']:
             if attr in child.attrib:
                 del child.attrib[attr]
     
-    # Convert to string and normalize whitespace
-    content = ET.tostring(elem_copy, encoding='unicode')
+    # Convert to string with consistent namespace handling
+    # Register a default namespace to avoid inconsistent prefixes
+    import xml.etree.ElementTree as ET
+    
+    # Use a custom method to serialize without namespace prefixes
+    def strip_namespaces(elem):
+        """Recursively strip namespace from element tags"""
+        # Remove namespace from tag
+        if elem.tag.startswith('{'):
+            elem.tag = elem.tag.split('}')[1]
+        
+        # Process children recursively
+        for child in elem:
+            strip_namespaces(child)
+    
+    # Make a copy to modify for serialization
+    serial_copy = copy.deepcopy(elem_copy)
+    strip_namespaces(serial_copy)
+    
+    # Serialize to string without namespace prefixes
+    content = ET.tostring(serial_copy, encoding='unicode')
+    
+    # Normalize clip-path references to remove the suffix numbers (like -2, -23, -3)
+    content = re.sub(r'clipId\d+\.\d*-\d+', 'clipId', content)
+    content = re.sub(r'clipId\d+\.\d*', 'clipId', content)
+    
+    # Normalize color formats: convert rgb(r,g,b) to hex or hex to rgb for consistency
+    def normalize_color(match):
+        full_match = match.group(0)
+        if full_match.startswith('rgb'):
+            # Parse rgb(r,g,b) format
+            import re
+            rgb_match = re.search(r'rgb\((\d+),(\d+),(\d+)\)', full_match)
+            if rgb_match:
+                r, g, b = map(int, rgb_match.groups())
+                return f"#{r:02x}{g:02x}{b:02x}".upper()
+        return full_match
+    
+    # Find and replace rgb colors with hex colors
+    content = re.sub(r'rgb\(\d+,\d+,\d+\)', normalize_color, content)
+    
+    # Extract path coordinates and normalize them to canonical representation
+    def extract_and_sort_path_coords(path_d):
+        # This function converts path data to a canonical form by extracting coordinates
+        import re
+        
+        # Extract all coordinate pairs from the path data
+        coords = re.findall(r'[\-+]?\d*\.?\d+', path_d)
+        
+        # Convert to float and group into coordinate pairs
+        coord_pairs = []
+        for i in range(0, len(coords), 2):
+            if i + 1 < len(coords):
+                try:
+                    x, y = float(coords[i]), float(coords[i + 1])
+                    coord_pairs.append((x, y))
+                except ValueError:
+                    continue
+        
+        # Sort coordinate pairs to create canonical representation
+        coord_pairs.sort()
+        
+        # Create a canonical string representation
+        canonical_coords = ' '.join([f"{x:.3f},{y:.3f}" for x, y in coord_pairs])
+        return canonical_coords
+    
+    # Apply coordinate normalization to path data
+    def normalize_path_coords(match):
+        path_d = match.group(1)
+        canonical_coords = extract_and_sort_path_coords(path_d)
+        return f'd="{canonical_coords}"'
+    
+    content = re.sub(r'd="([^"]*)"', normalize_path_coords, content)
     
     # Normalize whitespace
     content = re.sub(r'\s+', ' ', content)
@@ -198,38 +269,85 @@ def normalize_group_content(group: Element) -> List[str]:
 def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -> List[Tuple[List[Element], str]]:
     """
     Match input groups to find groups based on visual content.
-    This function looks for the specific pattern of 4 groups that should match find_001.
+    This function compares both individual groups and collections of groups.
+    Uses a more efficient approach by pre-filtering based on content.
     Returns a list of tuples: (matched_input_groups, find_group_id)
     """
     matches = []
     
-    # Only look for find_001 match based on the specific coordinates
-    find_id = "find_001"
-    if find_id in find_groups:
-        print(f"Looking for match for find group: {find_id}")
+    for find_id, find_group in find_groups.items():
+        print(f"Looking for match for find group {find_id}")
         
-        # For find_001, we know it has 4 child groups that should match 4 specific groups in input
-        find_group = find_groups[find_id]
-        find_child_groups = get_child_groups(find_group)
-        if find_child_groups and len(find_child_groups) == 4:
-            # We'll look for the specific pattern that has coordinates around 4706.7, 4317.27
-            # First, find all groups that contain these coordinates
-            potential_matches = []
-            for i, group in enumerate(input_groups):
-                group_str = ET.tostring(group, encoding='unicode')
-                if '4706.7,4317.27' in group_str:
-                    potential_matches.append((i, group))
+        # Get the child groups of the find group
+        find_child_groups = list(find_group)  # Direct children
+        num_find_children = len(find_child_groups)
+        
+        print(f"Find group {find_id} has {num_find_children} child groups")
+        
+        if num_find_children > 1:
+            # This is a complex group - look for similar content in input groups
+            print(f"Looking for {num_find_children} groups that match {find_id} structure")
             
-            if len(potential_matches) == 4:
-                # Get the 4 groups that contain the specific coordinates
-                matched_input_groups = [group for idx, group in potential_matches]
+            # First, normalize all find child groups for comparison
+            find_child_normalized = [normalize_svg_content(child) for child in find_child_groups]
+            find_child_normalized_sorted = sorted(find_child_normalized)
+            
+            # Look for input groups that have similar content/patterns
+            # For efficiency, only consider groups that have similar coordinate patterns
+            matching_input_groups = []
+            
+            # Get coordinate patterns from find group children
+            find_content_str = ' '.join(find_child_normalized)
+            # Extract coordinate patterns like "4706.7,4317.27" or similar
+            import re
+            find_coords = re.findall(r'\d+\.?\d*,\d+\.?\d*', find_content_str)
+            
+            print(f"Find group coordinates found: {find_coords[:5]}...")  # Show first 5
+            
+            # Filter input groups that have similar coordinates
+            for input_group in input_groups:
+                input_content = normalize_svg_content(input_group)
                 
-                print(f"Found exact match for {find_id} with 4 groups containing coordinates 4706.7,4317.27")
-                matches.append((matched_input_groups, find_id))
-            else:
-                print(f"Found {len(potential_matches)} groups with coordinates 4706.7,4317.27, expected 4 for {find_id}")
+                # Check if this input group has similar coordinate patterns
+                input_coords = re.findall(r'\d+\.?\d*,\d+\.?\d*', input_content)
+                
+                # If find group has coordinates, look for input groups with similar coordinates
+                if find_coords and input_coords:
+                    # Check if there's overlap in coordinate patterns (with some tolerance)
+                    find_coord_set = set(find_coords)
+                    input_coord_set = set(input_coords)
+                    
+                    # If they share at least one coordinate pattern, consider it a candidate
+                    if find_coord_set.intersection(input_coord_set):
+                        matching_input_groups.append(input_group)
+                elif not find_coords:  # If find group has no coordinates, compare directly
+                    matching_input_groups.append(input_group)
+            
+            print(f"Found {len(matching_input_groups)} candidate input groups for {find_id}")
+            
+            # Now only check combinations from the filtered list
+            if len(matching_input_groups) >= num_find_children:
+                from itertools import combinations
+                for combo in combinations(matching_input_groups, num_find_children):
+                    combo_normalized = [normalize_svg_content(group) for group in combo]
+                    combo_normalized_sorted = sorted(combo_normalized)
+                    
+                    if find_child_normalized_sorted == combo_normalized_sorted:
+                        print(f"Found match for {find_id} with {num_find_children} groups")
+                        matches.append((list(combo), find_id))
+                        break  # Found a match, don't look for more combinations for this find_id
         else:
-            print(f"Find group {find_id} does not have 4 child groups")
+            # This is a simple single group - look for individual matches
+            normalized_find_content = normalize_svg_content(find_group)
+            print(f"Normalized content: {normalized_find_content[:100]}...")
+            
+            for input_group in input_groups:
+                normalized_input_content = normalize_svg_content(input_group)
+                
+                if normalized_input_content == normalized_find_content:
+                    print(f"Found exact match for {find_id}")
+                    matches.append(([input_group], find_id))
+                    break  # Found a match, continue to next find_id
     
     return matches
 
