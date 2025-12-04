@@ -736,24 +736,21 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
             else:
                 print(f"  No input groups matched target bitmap")
         else:
-            # We have subgroups to match - match based on visual signatures and spatial arrangement
-            print(f"Looking for {len(target_subgroups)} subgroups matching {lookup_id}")
-            
-            # Create simple visual signatures for all target subgroups
-            target_signatures = []
-            target_bboxes = []
-            for i, target_subgroup in enumerate(target_subgroups):
-                sig = get_simple_visual_signature(target_subgroup)
-                target_signatures.append(sig)
+            # We have subgroups to match - but only match the 3rd subgroup (index 2) as per user request
+            if len(target_subgroups) >= 3:  # Make sure we have at least 3 subgroups
+                print(f"Looking for 3rd subgroup (index 2) matching {lookup_id}")
                 
-                # Get the bounding box of the target subgroup
-                bbox = get_element_bbox(target_subgroup)
+                # Only use the 3rd subgroup (index 2) for matching
+                target_subgroup = target_subgroups[2]  # 3rd subgroup (0-indexed)
+                target_signature = get_simple_visual_signature(target_subgroup)
+                target_bbox = get_element_bbox(target_subgroup)
+                
                 # If bbox is invalid (all zeros or extreme values), try to get a more meaningful position
-                if bbox == (0, 0, 0, 0) or (bbox[2] - bbox[0] == 0 and bbox[3] - bbox[1] == 0):
+                if target_bbox == (0, 0, 0, 0) or (target_bbox[2] - target_bbox[0] == 0 and target_bbox[3] - target_bbox[1] == 0):
                     # Calculate position based on transform or first element
                     rotation, tx, ty = get_element_transform(target_subgroup)
                     if tx != 0 or ty != 0:
-                        bbox = (tx, ty, tx + 1, ty + 1)  # Create a small bbox at the transform position
+                        target_bbox = (tx, ty, tx + 1, ty + 1)  # Create a small bbox at the transform position
                     else:
                         # Calculate position from first child element
                         for child in target_subgroup:
@@ -769,7 +766,7 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
                                             ys = [y for x, y in coords]
                                             min_x, max_x = min(xs), max(xs)
                                             min_y, max_y = min(ys), max(ys)
-                                            bbox = (min_x, min_y, max_x, max_y)
+                                            target_bbox = (min_x, min_y, max_x, max_y)
                                             break
                                 elif tag == 'path':
                                     d = child.get('d', '')
@@ -781,27 +778,20 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
                                             if xs and ys:
                                                 min_x, max_x = min(xs), max(xs)
                                                 min_y, max_y = min(ys), max(ys)
-                                                bbox = (min_x, min_y, max_x, max_y)
+                                                target_bbox = (min_x, min_y, max_x, max_y)
                                                 break
                                 elif tag == 'rect':
                                     x = float(child.get('x', 0))
                                     y = float(child.get('y', 0))
                                     width = float(child.get('width', 0))
                                     height = float(child.get('height', 0))
-                                    bbox = (x, y, x + width, y + height)
+                                    target_bbox = (x, y, x + width, y + height)
                                     break
                                 elif tag == 'circle':
                                     cx = float(child.get('cx', 0))
                                     cy = float(child.get('cy', 0))
                                     r = float(child.get('r', 0))
-                                    bbox = (cx - r, cy - r, cx + r, cy + r)
-                                    break
-                                elif tag == 'ellipse':
-                                    cx = float(child.get('cx', 0))
-                                    cy = float(child.get('cy', 0))
-                                    rx = float(child.get('rx', 0))
-                                    ry = float(child.get('ry', 0))
-                                    bbox = (cx - rx, cy - ry, cx + rx, cy + ry)
+                                    target_bbox = (cx - r, cy - r, cx + r, cy + r)
                                     break
                                 elif tag in ['line']:
                                     x1 = float(child.get('x1', 0))
@@ -810,28 +800,21 @@ def find_matching_groups(input_groups, lookup_groups, replace_groups):
                                     y2 = float(child.get('y2', 0))
                                     min_x, max_x = min(x1, x2), max(x1, x2)
                                     min_y, max_y = min(y1, y2), max(y1, y2)
-                                    bbox = (min_x, min_y, max_x, max_y)
+                                    target_bbox = (min_x, min_y, max_x, max_y)
                                     break
                 
-                target_bboxes.append(bbox)
+                target_signatures = [target_signature]
+                target_bboxes = [target_bbox]
                 
-                print(f"  Target {i} signature: {sig}, bbox: {bbox}")
-            
-            # Calculate relative positions between target subgroups (for spatial matching)
-            target_relative_positions = []
-            if len(target_bboxes) > 1:
-                # Use the first target as the reference point
-                ref_x = (target_bboxes[0][0] + target_bboxes[0][2]) / 2  # center x of first target
-                ref_y = (target_bboxes[0][1] + target_bboxes[0][3]) / 2  # center y of first target
+                print(f"  Target 2 (3rd subgroup) signature: {target_signature}, bbox: {target_bbox}")
                 
-                for bbox in target_bboxes:
-                    center_x = (bbox[0] + bbox[2]) / 2
-                    center_y = (bbox[1] + bbox[3]) / 2
-                    target_relative_positions.append((center_x - ref_x, center_y - ref_y))
+                # For single target, the relative position is just (0, 0)
+                target_relative_positions = [(0, 0)]
+                
+                print(f"  Target relative positions: {target_relative_positions}")
             else:
-                target_relative_positions.append((0, 0))
-            
-            print(f"  Target relative positions: {target_relative_positions}")
+                print(f"Warning: {lookup_id} does not have at least 3 subgroups to match")
+                continue
             
             # Find all input groups that match any of the target signatures
             input_to_targets = {}
