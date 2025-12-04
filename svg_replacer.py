@@ -15,6 +15,221 @@ from typing import Dict, List, Tuple, Optional
 import sys
 
 
+def normalize_color(color):
+    """
+    Normalize color values to handle different formats (rgb, hex, named colors).
+    """
+    if not color:
+        return color
+    
+    # Handle rgb(r,g,b) format
+    rgb_match = re.match(r'rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)', color)
+    if rgb_match:
+        r, g, b = map(int, rgb_match.groups())
+        return f"rgb({r},{g},{b})"
+    
+    # Handle hex format
+    if color.startswith('#'):
+        # Convert to rgb for comparison
+        hex_color = color[1:]
+        if len(hex_color) == 3:
+            hex_color = ''.join([c*2 for c in hex_color])  # Expand shorthand
+        if len(hex_color) == 6:
+            try:
+                r = int(hex_color[0:2], 16)
+                g = int(hex_color[2:4], 16)
+                b = int(hex_color[4:6], 16)
+                return f"rgb({r},{g},{b})"
+            except ValueError:
+                pass
+    
+    return color.lower()  # Normalize to lowercase
+
+def normalize_transform(transform):
+    """
+    Normalize transform values to handle different formats and precision.
+    """
+    if not transform:
+        return transform
+    
+    # Parse transform string and normalize numbers
+    parts = re.split(r'(\w+\s*\([^)]*\))', transform)
+    normalized_parts = []
+    
+    for part in parts:
+        if part.strip():
+            # Match transform functions and normalize their numeric values
+            func_match = re.match(r'(\w+)\s*\(([^)]*)\)', part.strip())
+            if func_match:
+                func_name = func_match.group(1)
+                params_str = func_match.group(2)
+                # Split parameters by comma or space and normalize numbers
+                params = re.split(r'[, ]+', params_str.strip())
+                normalized_params = []
+                for param in params:
+                    param = param.strip()
+                    if param:
+                        try:
+                            # Round to 4 decimal places for consistency
+                            normalized_params.append(f"{float(param):.4f}")
+                        except ValueError:
+                            normalized_params.append(param)
+                normalized_parts.append(f"{func_name}({','.join(normalized_params)})")
+            else:
+                normalized_parts.append(part)
+    
+    return ' '.join(normalized_parts)
+
+def normalize_path_data(path_d):
+    """
+    Normalize path data by converting all commands to absolute coordinates
+    and standardizing the format for comparison.
+    """
+    if not path_d:
+        return ""
+    
+    # Clean up the path string
+    path_d = re.sub(r'\s+', ' ', path_d.strip())
+    
+    # Split into commands and coordinates
+    segments = []
+    current_pos = 0
+    i = 0
+    while i < len(path_d):
+        char = path_d[i]
+        if char.isalpha():
+            # Found a command
+            command = char
+            i += 1
+            # Skip any whitespace after the command
+            while i < len(path_d) and path_d[i].isspace():
+                i += 1
+            # Collect coordinates for this command
+            coords = []
+            while i < len(path_d):
+                if path_d[i].isspace():
+                    i += 1
+                    continue
+                elif path_d[i].isalpha() and path_d[i] not in 'eE':
+                    # New command
+                    break
+                else:
+                    # Collect the number
+                    num_str = ''
+                    while i < len(path_d) and (path_d[i].isdigit() or path_d[i] in '.-+eE'):
+                        num_str += path_d[i]
+                        i += 1
+                    if num_str:
+                        try:
+                            num = float(num_str)
+                            # Round to 4 decimal places for consistency
+                            coords.append(f"{num:.4f}")
+                        except ValueError:
+                            coords.append(num_str)
+                    else:
+                        i += 1
+                    # Skip whitespace after number
+                    while i < len(path_d) and path_d[i].isspace():
+                        i += 1
+            
+            segments.append(command)
+            segments.extend(coords)
+        else:
+            i += 1
+    
+    # Convert relative commands to absolute (simplified approach)
+    result = []
+    current_x, current_y = 0, 0
+    start_x, start_y = 0, 0
+    i = 0
+    
+    while i < len(segments):
+        cmd = segments[i]
+        if cmd in 'Mm':
+            i += 1
+            x = float(segments[i])
+            i += 1
+            y = float(segments[i])
+            if cmd.islower():
+                x += current_x
+                y += current_y
+            result.extend(['M', str(x), str(y)])
+            current_x, current_y = x, y
+            start_x, start_y = x, y
+            i += 1
+        elif cmd in 'LlTt':
+            i += 1
+            x = float(segments[i])
+            i += 1
+            y = float(segments[i])
+            if cmd.islower():
+                x += current_x
+                y += current_y
+            result.extend(['L', str(x), str(y)])
+            current_x, current_y = x, y
+            i += 1
+        elif cmd in 'Hh':
+            i += 1
+            x = float(segments[i])
+            if cmd.islower():
+                x += current_x
+            y = current_y
+            result.extend(['L', str(x), str(y)])
+            current_x = x
+            i += 1
+        elif cmd in 'Vv':
+            i += 1
+            y = float(segments[i])
+            if cmd.islower():
+                y += current_y
+            x = current_x
+            result.extend(['L', str(x), str(y)])
+            current_y = y
+            i += 1
+        elif cmd in 'Zz':
+            result.append('Z')
+            current_x, current_y = start_x, start_y
+            i += 1
+        elif cmd in 'Cc':
+            # Cubic Bezier - just add as is for now
+            result.append(cmd.upper())
+            i += 1
+            for j in range(6):  # 6 coordinates for cubic Bezier
+                if i < len(segments):
+                    result.append(segments[i])
+                    i += 1
+        elif cmd in 'Ss':
+            # Smooth cubic Bezier - just add as is for now
+            result.append(cmd.upper())
+            i += 1
+            for j in range(4):  # 4 coordinates for smooth cubic Bezier
+                if i < len(segments):
+                    result.append(segments[i])
+                    i += 1
+        elif cmd in 'Qq':
+            # Quadratic Bezier - just add as is for now
+            result.append(cmd.upper())
+            i += 1
+            for j in range(4):  # 4 coordinates for quadratic Bezier
+                if i < len(segments):
+                    result.append(segments[i])
+                    i += 1
+        elif cmd in 'Aa':
+            # Arc - just add as is for now
+            result.append(cmd.upper())
+            i += 1
+            for j in range(7):  # 7 parameters for arc
+                if i < len(segments):
+                    result.append(segments[i])
+                    i += 1
+        else:
+            # Unknown command, just add it
+            result.append(cmd)
+            i += 1
+    
+    return ' '.join(result)
+
+
 def extract_path_elements(element: Element) -> List[Element]:
     """
     Extract all path elements from an element and its children.
@@ -393,10 +608,12 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
         
         # Extract path elements from find group subgroups
         find_path_elements = []
+        find_subgroups = []
         for subgroup in find_group:  # Direct children of the find group
             find_path_elements.extend(extract_path_elements(subgroup))
+            find_subgroups.append(subgroup)
         
-        print(f"Find group {find_id} has {len(find_path_elements)} path elements in its subgroups")
+        print(f"Find group {find_id} has {len(find_path_elements)} path elements in {len(find_subgroups)} subgroups")
         
         if not find_path_elements:
             print(f"No path elements found in find group {find_id}, skipping...")
@@ -406,36 +623,48 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
         normalized_find_paths = [normalize_path_content(path_elem) for path_elem in find_path_elements]
         normalized_find_paths_set = set(normalized_find_paths)
         
-        print(f"Normalized find path elements: {len(normalized_find_paths)} unique elements")
+        print(f"Normalized find path elements: {len(normalized_find_paths)} elements, {len(normalized_find_paths_set)} unique")
 
         # Look for input groups that contain path elements matching the find group
         matching_input_groups = []
         
-        for input_group in input_groups:
-            # Extract path elements from this input group
-            input_path_elements = extract_path_elements(input_group)
-            if not input_path_elements:
+        # Try to match sequences of consecutive groups that match the pattern
+        for i in range(len(input_groups)):
+            # Check if we have enough remaining groups to match the find pattern
+            if i + len(find_subgroups) > len(input_groups):
                 continue
                 
-            # Normalize path elements in this input group
-            normalized_input_paths = [normalize_path_content(path_elem) for path_elem in input_path_elements]
-            normalized_input_paths_set = set(normalized_input_paths)
+            # Get a sequence of input groups to compare
+            candidate_groups = input_groups[i:i+len(find_subgroups)]
             
-            # Check if the input group has the same path elements as the find group
-            if normalized_find_paths_set == normalized_input_paths_set:
-                print(f"Found matching input group with same path elements as {find_id}")
-                matching_input_groups.append(input_group)
-            elif len(normalized_find_paths_set.intersection(normalized_input_paths_set)) == len(normalized_find_paths_set):
-                # If the input group contains all the path elements from the find group (and maybe more)
-                print(f"Found matching input group containing find group path elements: {find_id}")
-                matching_input_groups.append(input_group)
+            # Extract path elements from these candidate groups
+            candidate_path_elements = []
+            for group in candidate_groups:
+                candidate_path_elements.extend(extract_path_elements(group))
+            
+            if not candidate_path_elements:
+                continue
+                
+            # Normalize path elements in these candidate groups
+            normalized_candidate_paths = [normalize_path_content(path_elem) for path_elem in candidate_path_elements]
+            normalized_candidate_paths_set = set(normalized_candidate_paths)
+            
+            # Check if the candidate groups have the same path elements as the find group
+            if normalized_find_paths_set == normalized_candidate_paths_set:
+                print(f"Found matching sequence of {len(candidate_groups)} groups with same path elements as {find_id}")
+                matching_input_groups.append(candidate_groups)
+            elif normalized_find_paths_set.issubset(normalized_candidate_paths_set):
+                # If the candidate groups contain all the path elements from the find group (and maybe more)
+                print(f"Found matching sequence containing find group path elements: {find_id}")
+                matching_input_groups.append(candidate_groups)
 
-        print(f"Found {len(matching_input_groups)} candidate input groups for {find_id}")
+        print(f"Found {len(matching_input_groups)} candidate group sequences for {find_id}")
         
         # Add the matching groups to results
-        for input_group in matching_input_groups:
-            print(f"Adding match: input group with id {input_group.get('id', 'no_id')} matches {find_id}")
-            matches.append(([input_group], find_id))
+        for input_group_sequence in matching_input_groups:
+            group_ids = [g.get('id', 'no_id') for g in input_group_sequence]
+            print(f"Adding match: group sequence {group_ids} matches {find_id}")
+            matches.append((input_group_sequence, find_id))
 
     return matches
 
