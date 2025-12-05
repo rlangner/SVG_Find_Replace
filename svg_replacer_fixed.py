@@ -942,6 +942,82 @@ def get_group_transform(group: Element) -> str:
     return ''
 
 
+def calculate_group_position(group: Element, input_root: Element) -> str:
+    """
+    Calculate the absolute position of a group by looking at its transform and parent transforms.
+    """
+    transforms = []
+    
+    # Collect all transforms from the group up to the root
+    current = group
+    while current is not None and current != input_root:
+        transform_attr = current.get('transform')
+        if transform_attr:
+            transforms.append(transform_attr)
+        # Use a more reliable method to get the parent
+        parent = None
+        for p in input_root.iter():
+            if current in list(p):
+                parent = p
+                break
+        current = parent
+    
+    # Combine transforms if there are multiple
+    if transforms:
+        # Reverse to apply parent transforms first
+        transforms.reverse()
+        combined_transform = ' '.join(transforms)
+        return combined_transform
+    
+    return ''
+
+
+def get_element_position_info(element: Element) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Extract position information from an element by looking at its attributes and content.
+    Returns (transform, coordinates_info) tuple.
+    """
+    # Get the transform attribute
+    transform = element.get('transform')
+    
+    # Try to extract coordinate information from path/polygon/polyline elements
+    coords_info = None
+    
+    # Look for path elements with d attribute
+    for path_elem in element.iter():
+        if path_elem.tag.endswith('path') and path_elem.get('d'):
+            d_attr = path_elem.get('d')
+            # Extract first coordinate from path data
+            import re
+            coords = re.findall(r'[-+]?\\d*\\.?\\d+', d_attr)
+            if coords and len(coords) >= 2:
+                try:
+                    x = float(coords[0])
+                    y = float(coords[1])
+                    coords_info = f"first_coord:({x},{y})"
+                    break
+                except ValueError:
+                    continue
+        elif path_elem.tag.endswith('polygon') or path_elem.tag.endswith('polyline'):
+            points = path_elem.get('points')
+            if points:
+                # Parse first coordinate from points
+                point_pairs = points.split()
+                if point_pairs:
+                    first_point = point_pairs[0]
+                    if ',' in first_point:
+                        x, y = first_point.split(',')
+                        try:
+                            x = float(x.strip())
+                            y = float(y.strip())
+                            coords_info = f"first_point:({x},{y})"
+                            break
+                        except ValueError:
+                            continue
+    
+    return transform, coords_info
+
+
 def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_path: str):
     """
     Main function to replace matching groups in input SVG with replacement groups from lookup SVG.
@@ -996,8 +1072,14 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             occurrence_counts[find_id] = occurrence_counts.get(find_id, 0) + 1
             replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
             
+            # Calculate the absolute position of the first matched group
+            absolute_position = calculate_group_position(matched_input_groups[0], input_root)
+
             # Apply the transform from the first matched group to the replacement if it doesn't already have one
-            if first_group_transform and 'transform' not in replacement.attrib:
+            # Prefer the absolute position if available, otherwise use the direct transform
+            if absolute_position and 'transform' not in replacement.attrib:
+                replacement.set('transform', absolute_position)
+            elif first_group_transform and 'transform' not in replacement.attrib:
                 replacement.set('transform', first_group_transform)
             
             # Find the parent of the first matched group to replace the entire sequence in the same location
