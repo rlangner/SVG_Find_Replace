@@ -989,13 +989,113 @@ def calculate_group_center(groups: List[Element]) -> Tuple[float, float]:
     return avg_x, avg_y
 
 
-def calculate_original_transform(groups: List[Element], input_root: Element) -> str:
+def calculate_element_bounding_box(element: Element) -> Tuple[float, float, float, float]:
+    """
+    Calculate the bounding box of an SVG element by analyzing its path coordinates.
+    Returns (min_x, min_y, max_x, max_y).
+    """
+    all_coords = []
+    
+    # Extract coordinates from all path elements in this element and its children
+    for path_elem in element.iter():
+        if path_elem.tag.endswith('path') and path_elem.get('d'):
+            d_attr = path_elem.get('d')
+            # Extract coordinates from path data
+            coords = re.findall(r'[-+]?\\d*\\.?\\d+', d_attr)
+            # Process coordinates in pairs (x, y)
+            for i in range(0, len(coords), 2):
+                if i + 1 < len(coords):
+                    try:
+                        x = float(coords[i])
+                        y = float(coords[i + 1])
+                        all_coords.append((x, y))
+                    except ValueError:
+                        continue
+        elif path_elem.tag.endswith('polygon') or path_elem.tag.endswith('polyline'):
+            points = path_elem.get('points')
+            if points:
+                # Parse coordinates from points attribute
+                point_pairs = points.split()
+                for point_pair in point_pairs:
+                    if ',' in point_pair:
+                        x, y = point_pair.split(',')
+                        try:
+                            x = float(x.strip())
+                            y = float(y.strip())
+                            all_coords.append((x, y))
+                        except ValueError:
+                            continue
+        elif path_elem.tag.endswith('rect'):
+            # Handle rect elements
+            x = float(path_elem.get('x', 0))
+            y = float(path_elem.get('y', 0))
+            width = float(path_elem.get('width', 0))
+            height = float(path_elem.get('height', 0))
+            all_coords.extend([(x, y), (x + width, y), (x, y + height), (x + width, y + height)])
+        elif path_elem.tag.endswith('circle'):
+            # Handle circle elements
+            cx = float(path_elem.get('cx', 0))
+            cy = float(path_elem.get('cy', 0))
+            r = float(path_elem.get('r', 0))
+            all_coords.extend([(cx - r, cy - r), (cx + r, cy + r)])
+        elif path_elem.tag.endswith('ellipse'):
+            # Handle ellipse elements
+            cx = float(path_elem.get('cx', 0))
+            cy = float(path_elem.get('cy', 0))
+            rx = float(path_elem.get('rx', 0))
+            ry = float(path_elem.get('ry', 0))
+            all_coords.extend([(cx - rx, cy - ry), (cx + rx, cy + ry)])
+    
+    if not all_coords:
+        return 0.0, 0.0, 0.0, 0.0
+    
+    min_x = min(coord[0] for coord in all_coords)
+    min_y = min(coord[1] for coord in all_coords)
+    max_x = max(coord[0] for coord in all_coords)
+    max_y = max(coord[1] for coord in all_coords)
+    
+    return min_x, min_y, max_x, max_y
+
+
+def calculate_element_center_and_size(element: Element) -> Tuple[float, float, float, float]:
+    """
+    Calculate the center position and size of an SVG element.
+    Returns (center_x, center_y, width, height).
+    """
+    min_x, min_y, max_x, max_y = calculate_element_bounding_box(element)
+    center_x = (min_x + max_x) / 2
+    center_y = (min_y + max_y) / 2
+    width = max_x - min_x
+    height = max_y - min_y
+    
+    return center_x, center_y, width, height
+
+
+def calculate_original_transform(groups: List[Element], input_root: Element, replacement_group: Element = None) -> str:
     """
     Calculate the transform needed to position the replacement group at the same location
-    as the matched groups in the input SVG.
+    as the matched groups in the input SVG, accounting for the replacement group's dimensions
+    to center it properly.
     """
     # Get the center of the matched groups
     center_x, center_y = calculate_group_center(groups)
+    
+    # If we have a replacement group, adjust the position to center it
+    if replacement_group is not None:
+        # Calculate the center and dimensions of the replacement group
+        rep_center_x, rep_center_y, rep_width, rep_height = calculate_element_center_and_size(replacement_group)
+        
+        # Adjust the center position to account for the replacement group's dimensions
+        # This ensures the center of the replacement group aligns with the center of the original group
+        # We need to move the replacement group so that its center point lands at the original center
+        # The adjustment should be: original_center - (replacement_local_center - replacement_origin_offset)
+        # Since we want the replacement's center to be at the original center
+        adjusted_center_x = center_x - rep_center_x  # This shifts the replacement group appropriately
+        adjusted_center_y = center_y - rep_center_y  # This shifts the replacement group appropriately
+    else:
+        # Use original behavior if no replacement group provided
+        adjusted_center_x = center_x
+        adjusted_center_y = center_y
     
     # Find the first group in the sequence to get its transform
     first_group = groups[0]
@@ -1015,16 +1115,16 @@ def calculate_original_transform(groups: List[Element], input_root: Element) -> 
                 break
         current = parent
     
-    # Combine existing transforms with translation to center position
+    # Combine existing transforms with translation to adjusted center position
     if transforms:
         # Reverse to apply parent transforms first
         transforms.reverse()
         combined_transform = ' '.join(transforms)
-        # Add translation to center position
-        return f"{combined_transform} translate({center_x},{center_y})"
+        # Add translation to adjusted center position
+        return f"{combined_transform} translate({adjusted_center_x},{adjusted_center_y})"
     else:
-        # Just use translation to center position
-        return f"translate({center_x},{center_y})"
+        # Just use translation to adjusted center position
+        return f"translate({adjusted_center_x},{adjusted_center_y})"
 
 
 def get_element_position_info(element: Element) -> Tuple[Optional[str], Optional[str]]:
@@ -1125,7 +1225,7 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
             
             # Calculate the original transform based on the matched groups in the input SVG
-            original_transform = calculate_original_transform(matched_input_groups, input_root)
+            original_transform = calculate_original_transform(matched_input_groups, input_root, replacement)
             
             # Get the replacement group's original transform (if any)
             replacement_original_transform = replacement.get('transform', '')
