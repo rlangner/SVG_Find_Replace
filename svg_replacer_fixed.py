@@ -1202,6 +1202,78 @@ def get_element_dimensions(element: Element) -> Tuple[float, float]:
     return abs(width), abs(height)
 
 
+def get_cumulative_transform(element: Element, stop_at: Element = None) -> Optional[str]:
+    """
+    Get the cumulative transform by walking up the element tree until stop_at.
+    """
+    transforms = []
+    current = element
+    
+    while current is not None and current != stop_at:
+        transform = current.get('transform')
+        if transform:
+            transforms.append(transform)
+        
+        # Find parent
+        parent = None
+        # Look for parent in the root element or stop_at element
+        for p in element.getroottree().getroot().iter():
+            if current in list(p):
+                parent = p
+                break
+        else:
+            # If we can't find a parent, break
+            break
+        
+        if parent == current:
+            break
+        current = parent
+    
+    if transforms:
+        transforms.reverse()  # Apply from outermost to innermost
+        return ' '.join(transforms)
+    return None
+
+
+def apply_transform_to_point(x: float, y: float, transform_str: str) -> Tuple[float, float]:
+    """
+    Apply an SVG transform string to a point (x, y).
+    Supports translate, scale, and matrix transforms.
+    """
+    # Parse the transform string
+    import re
+    
+    # Split the transform string into individual transforms
+    transform_parts = re.findall(r'(\w+)\s*\(([^)]*)\)', transform_str)
+    
+    new_x, new_y = x, y
+    
+    for func_name, params_str in transform_parts:
+        params = [float(p.strip()) for p in re.split(r'[, ]+', params_str.strip()) if p.strip()]
+        
+        if func_name == 'translate':
+            if len(params) >= 1:
+                tx = params[0]
+                ty = params[1] if len(params) > 1 else 0
+                new_x += tx
+                new_y += ty
+        elif func_name == 'scale':
+            if len(params) >= 1:
+                sx = params[0]
+                sy = params[1] if len(params) > 1 else sx
+                new_x *= sx
+                new_y *= sy
+        elif func_name == 'matrix':
+            if len(params) >= 6:
+                a, b, c, d, e, f = params[:6]
+                # Matrix transformation: x' = ax + cy + e, y' = bx + dy + f
+                orig_x, orig_y = new_x, new_y
+                new_x = a * orig_x + c * orig_y + e
+                new_y = b * orig_x + d * orig_y + f
+    
+    return new_x, new_y
+
+
 def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_path: str):
     """
     Main function to replace matching groups in input SVG with replacement groups from lookup SVG.
@@ -1257,33 +1329,33 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             # as the matched groups in the input SVG
             target_transform = calculate_original_transform(matched_input_groups, input_root)
             
-            # Get the original transform of the replacement group
-            original_transform = replace_group.get('transform', '')
-            
             # Get dimensions of the find and replace groups to calculate offset
             find_width, find_height = get_element_dimensions(matched_input_groups[0])
             replace_width, replace_height = get_element_dimensions(replace_group)
+            
+            print(f"DEBUG: For {find_id} -> {replace_id}, find dimensions: {find_width}x{find_height}, replace dimensions: {replace_width}x{replace_height}")
             
             # Calculate offset based on size difference
             x_offset = (find_width - replace_width) / 2
             y_offset = (find_height - replace_height) / 2
             
+            print(f"DEBUG: Calculated offset: x={x_offset}, y={y_offset}")
+            
             # Create offset transform
             offset_transform = f"translate({x_offset},{y_offset})"
             
-            # Combine the transforms: target_transform + original_transform + offset
-            # The order is important: we want the target transform to position the element correctly,
-            # then apply the original transform of the replacement element,
-            # then apply the offset to center it based on size differences
+            # Combine the transforms: target_transform + offset
+            # We don't apply the original transform of the replacement group because
+            # that was just its position in the lookup.svg, not where it should be placed
             transforms = []
             if target_transform:
                 transforms.append(target_transform)
-            if original_transform:
-                transforms.append(original_transform)
             if offset_transform:
                 transforms.append(offset_transform)
                 
             combined_transform = ' '.join(transforms)
+            
+            print(f"DEBUG: Combined transform: {combined_transform}")
             
             # Apply the combined transform to the replacement group
             replacement.set('transform', combined_transform)
