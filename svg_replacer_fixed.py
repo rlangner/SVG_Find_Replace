@@ -1175,24 +1175,30 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             occurrence_counts[find_id] = occurrence_counts.get(find_id, 0) + 1
             replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
             
-            # Calculate the transform needed to position the replacement group at the same location
-            # as the matched groups in the input SVG
-            target_transform = calculate_original_transform(matched_input_groups, input_root)
-            
             # Get the original transform of the replacement group
             original_transform = replace_group.get('transform', '')
             
-            # Combine the original transform with the target transform
-            # If both transforms exist, concatenate them; otherwise use whichever exists
-            if original_transform and target_transform:
-                # Apply target transform (positioning) first, then original transform
-                combined_transform = f"{target_transform} {original_transform}"
-            elif target_transform:
-                combined_transform = target_transform
-            elif original_transform:
-                combined_transform = original_transform
+            # For center-to-center alignment, we need to calculate the centers of both groups
+            # Calculate the center of the matched input groups
+            matched_center_x, matched_center_y = calculate_group_center(matched_input_groups)
+            
+            # Calculate the center of the replacement group
+            replacement_center_x, replacement_center_y = calculate_group_center([replace_group])
+            
+            # To align the centers, we need to position the replacement element such that
+            # its center coincides with the matched group's center
+            # The translation needed is: (matched_center) - (replacement_center)
+            translate_x = matched_center_x - replacement_center_x
+            translate_y = matched_center_y - replacement_center_y
+            
+            # Create the centering transform
+            centering_transform = f"translate({translate_x},{translate_y})"
+            
+            # Combine the transforms: first centering, then apply the original transform of replacement
+            if original_transform:
+                combined_transform = f"{centering_transform} {original_transform}"
             else:
-                combined_transform = ''
+                combined_transform = centering_transform
             
             # Apply the combined transform to the replacement group
             replacement.set('transform', combined_transform)

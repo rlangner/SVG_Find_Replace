@@ -1,5 +1,52 @@
 ```
-# Generated from file changes
-# SVG output files
+# Image files (SVG in this case)
 *.svg
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Dependencies
+.venv/
+venv/
+env/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build and distribution artifacts
+dist/
+build/
+*.egg-info/
+.tox/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 ```
