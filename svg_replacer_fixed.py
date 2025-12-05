@@ -80,6 +80,218 @@ def normalize_transform(transform):
     
     return ' '.join(normalized_parts)
 
+
+def extract_translation_from_transform(transform_str: str) -> Tuple[float, float]:
+    """
+    Extract the effective translation (x, y) from a transform string that may contain
+    matrix transformations, translations, and other transforms.
+    For matrix(a,b,c,d,e,f), e and f are the translation components.
+    For translate(x,y), x and y are the translation components.
+    Returns (x_translation, y_translation) tuple.
+    """
+    if not transform_str:
+        return 0.0, 0.0
+    
+    total_tx = 0.0
+    total_ty = 0.0
+    
+    # Parse transform string and extract translation components
+    parts = re.split(r'(\w+\s*\([^)]*\))', transform_str)
+    
+    for part in parts:
+        if part.strip():
+            # Match transform functions
+            func_match = re.match(r'(\w+)\s*\(([^)]*)\)', part.strip())
+            if func_match:
+                func_name = func_match.group(1)
+                params_str = func_match.group(2)
+                # Split parameters by comma or space
+                params = re.split(r'[, ]+', params_str.strip())
+                params = [p.strip() for p in params if p.strip()]
+                
+                if func_name == 'translate' and len(params) >= 2:
+                    try:
+                        tx = float(params[0])
+                        ty = float(params[1]) if len(params) > 1 else tx  # If only one param, y = x
+                        total_tx += tx
+                        total_ty += ty
+                    except ValueError:
+                        pass
+                elif func_name == 'matrix' and len(params) >= 6:
+                    try:
+                        # For matrix(a,b,c,d,e,f), e and f are translation components
+                        ex = float(params[4])  # e component
+                        ey = float(params[5])  # f component
+                        total_tx += ex
+                        total_ty += ey
+                    except ValueError:
+                        pass
+    
+    return total_tx, total_ty
+
+
+def calculate_element_center_in_local_coords(element: Element) -> Tuple[float, float]:
+    """
+    Calculate the center of an element's content in its own local coordinate system.
+    This is used to determine how internal transforms affect the final position of the element.
+    """
+    all_coords = []
+    
+    # Extract coordinates from path elements in this element and its children
+    for path_elem in element.iter():
+        if path_elem.tag.endswith('path') and path_elem.get('d'):
+            d_attr = path_elem.get('d')
+            # Extract coordinates from path data
+            coords = re.findall(r'[-+]?\\d*\\.?\\d+', d_attr)
+            # Process coordinates in pairs (x, y)
+            for i in range(0, len(coords), 2):
+                if i + 1 < len(coords):
+                    try:
+                        x = float(coords[i])
+                        y = float(coords[i + 1])
+                        all_coords.append((x, y))
+                    except ValueError:
+                        continue
+        elif (path_elem.tag.endswith('polygon') or path_elem.tag.endswith('polyline')) and path_elem.get('points'):
+            points_attr = path_elem.get('points')
+            # Parse points attribute
+            point_pairs = points_attr.split()
+            for point_pair in point_pairs:
+                if ',' in point_pair:
+                    try:
+                        x, y = point_pair.split(',')
+                        x = float(x.strip())
+                        y = float(y.strip())
+                        all_coords.append((x, y))
+                    except ValueError:
+                        continue
+
+    if not all_coords:
+        # If no coordinates found, assume center is at (0, 0)
+        return 0.0, 0.0
+
+    # Calculate the center (average) of all coordinates
+    avg_x = sum(coord[0] for coord in all_coords) / len(all_coords)
+    avg_y = sum(coord[1] for coord in all_coords) / len(all_coords)
+
+    return avg_x, avg_y
+
+
+def apply_transform_to_point(x: float, y: float, transform_str: str) -> Tuple[float, float]:
+    """
+    Apply a transform to a point (x, y).
+    This is used to determine where a point will end up after applying an internal transform.
+    """
+    result_x, result_y = x, y
+    
+    if not transform_str:
+        return result_x, result_y
+    
+    # Process each transform component in order
+    parts = re.split(r'(\w+\s*\([^)]*\))', transform_str)
+    
+    for part in parts:
+        if part.strip():
+            # Match transform functions
+            func_match = re.match(r'(\w+)\s*\(([^)]*)\)', part.strip())
+            if func_match:
+                func_name = func_match.group(1)
+                params_str = func_match.group(2)
+                # Split parameters by comma or space
+                params = re.split(r'[, ]+', params_str.strip())
+                params = [p.strip() for p in params if p.strip()]
+                
+                if func_name == 'translate' and len(params) >= 2:
+                    try:
+                        tx = float(params[0])
+                        ty = float(params[1]) if len(params) > 1 else tx  # If only one param, y = x
+                        result_x += tx
+                        result_y += ty
+                    except ValueError:
+                        pass
+                elif func_name == 'matrix' and len(params) >= 6:
+                    try:
+                        a, b, c, d, e, f = [float(p) for p in params[:6]]
+                        # Apply transformation: x' = a*x + c*y + e, y' = b*x + d*y + f
+                        new_x = a * result_x + c * result_y + e
+                        new_y = b * result_x + d * result_y + f
+                        result_x, result_y = new_x, new_y
+                    except (ValueError, IndexError):
+                        pass
+    
+    return result_x, result_y
+
+
+def apply_inverse_transform_to_translation(tx: float, ty: float, transform_str: str) -> Tuple[float, float]:
+    """
+    Apply the inverse of a transform to a translation to compensate for internal transforms.
+    This is needed when we want to place an element at a specific location despite
+    having an internal transform on the element itself.
+    For transform T and desired final position (tx, ty), we want to find (new_tx, new_ty)
+    such that (new_tx, new_ty) transformed by T results in (tx, ty).
+    So we need to apply inverse(T) to (tx, ty).
+    """
+    if not transform_str:
+        return tx, ty
+    
+    # First, extract all matrix transformations
+    import re
+    matrix_matches = re.findall(r'matrix\s*\(\s*([^)]*)\s*\)', transform_str)
+    
+    # Process matrices in reverse order (since we're applying inverse)
+    for matrix_str in reversed(matrix_matches):
+        params = re.split(r'[, ]+', matrix_str.strip())
+        params = [p.strip() for p in params if p.strip()]
+        
+        if len(params) >= 6:
+            try:
+                a, b, c, d, e, f = [float(p) for p in params[:6]]
+                # The full transformation is: 
+                # x' = a*x + c*y + e
+                # y' = b*x + d*y + f
+                # To find (x,y) given (x',y'), we solve:
+                # x' - e = a*x + c*y
+                # y' - f = b*x + d*y
+                # [x' - e] = [a c] [x]
+                # [y' - f]   [b d] [y]
+                # So [x] = inverse([a c]) [x' - e]
+                #     [y]             [b d] [y' - f]
+                
+                det = a * d - b * c
+                if abs(det) > 1e-10:  # Avoid division by zero
+                    # Inverse of [[a, c], [b, d]] is 1/det * [[d, -c], [-b, a]]
+                    translated_x = tx - e  # Remove translation component first
+                    translated_y = ty - f
+                    new_tx = (d * translated_x - c * translated_y) / det
+                    new_ty = (-b * translated_x + a * translated_y) / det
+                    tx, ty = new_tx, new_ty
+                else:
+                    # If determinant is zero, can't invert, return original
+                    return tx, ty
+            except (ValueError, IndexError):
+                # If parsing fails, skip this matrix
+                continue
+    
+    # Process any translate operations in the transform string
+    translate_matches = re.findall(r'translate\s*\(\s*([^)]*)\s*\)', transform_str)
+    for translate_str in reversed(translate_matches):
+        params = re.split(r'[, ]+', translate_str.strip())
+        params = [p.strip() for p in params if p.strip()]
+        
+        if len(params) >= 2:
+            try:
+                trans_x = float(params[0])
+                trans_y = float(params[1]) if len(params) > 1 else trans_x
+                # To undo a translation (tx, ty), we subtract it
+                tx -= trans_x
+                ty -= trans_y
+            except ValueError:
+                # If parsing fails, skip this translation
+                continue
+    
+    return tx, ty
+
+
 def normalize_path_data(path_d):
     """
     Normalize path data by converting all commands to absolute coordinates
@@ -1124,17 +1336,56 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             occurrence_counts[find_id] = occurrence_counts.get(find_id, 0) + 1
             replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
             
-            # Calculate the original transform based on the matched groups in the input SVG
-            original_transform = calculate_original_transform(matched_input_groups, input_root)
+            # Calculate the center position based on the matched groups in the input SVG
+            center_x, center_y = calculate_group_center(matched_input_groups)
             
             # Get the replacement group's original transform (if any)
             replacement_original_transform = replacement.get('transform', '')
             
             # Combine the replacement's original transform with the positioning transform
             if replacement_original_transform:
-                # Apply the replacement's original transform first, then the positioning transform
-                combined_transform = f"{replacement_original_transform} {original_transform}"
+                # Calculate the original transform needed to position the replacement at the same location as the matched groups
+                original_transform = calculate_original_transform(matched_input_groups, input_root)
+                
+                # Extract the target position from the original transform
+                # The original_transform typically ends with a translate() that positions the element
+                # We need to apply the inverse of the replacement's internal transform to this target position
+                import re
+                
+                # Extract the final translation from original_transform (the target position)
+                # This is a simplified approach - look for the last translate in the transform string
+                translate_matches = re.findall(r'translate\s*\(\s*([^)]*)\s*\)', original_transform)
+                if translate_matches:
+                    # Get the last translate operation (the final positioning)
+                    last_translate = translate_matches[-1]
+                    params = re.split(r'[, ]+', last_translate.strip())
+                    params = [p.strip() for p in params if p.strip()]
+                    
+                    if len(params) >= 2:
+                        try:
+                            target_x = float(params[0])
+                            target_y = float(params[1]) if len(params) > 1 else target_x
+                            
+                            # Calculate the inverse transform of the replacement's internal transform
+                            # applied to the target position
+                            adjusted_pos = apply_inverse_transform_to_translation(
+                                target_x, target_y, replacement_original_transform
+                            )
+                            
+                            # Replace the final translation in the original transform with the adjusted position
+                            # This is a bit complex - we need to replace the final translate operation
+                            # For now, let's just use the adjusted position in a new transform
+                            combined_transform = f"translate({adjusted_pos[0]},{adjusted_pos[1]}) {replacement_original_transform}"
+                        except ValueError:
+                            # If parsing fails, fall back to the original approach
+                            combined_transform = f"{original_transform} {replacement_original_transform}"
+                    else:
+                        combined_transform = f"{original_transform} {replacement_original_transform}"
+                else:
+                    combined_transform = f"{original_transform} {replacement_original_transform}"
             else:
+                # Calculate the original transform based on the matched groups in the input SVG (including parent transforms)
+                original_transform = calculate_original_transform(matched_input_groups, input_root)
                 # Just use the positioning transform
                 combined_transform = original_transform
 
