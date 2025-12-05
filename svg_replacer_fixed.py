@@ -778,6 +778,141 @@ def normalize_coordinates_in_content(content: str) -> str:
     return content.strip()
 
 
+def get_element_bounding_box(element: Element) -> Tuple[float, float, float, float]:
+    """
+    Calculate the bounding box of an SVG element by parsing its content.
+    Returns (min_x, min_y, max_x, max_y).
+    """
+    import re
+    
+    # Initialize with extreme values
+    min_x, min_y = float('inf'), float('inf')
+    max_x, max_y = float('-inf'), float('-inf')
+    
+    # Process all child elements recursively
+    def process_element(elem):
+        nonlocal min_x, min_y, max_x, max_y
+        
+        # Process path elements
+        if elem.tag.endswith('path'):
+            d = elem.get('d', '')
+            if d:
+                # Extract coordinates from path data
+                coords = re.findall(r'[-+]?\.?\d+\.?\d*', d)
+                # Process coordinates in pairs (x, y)
+                for i in range(0, len(coords)-1, 2):
+                    if i+1 < len(coords):
+                        try:
+                            x, y = float(coords[i]), float(coords[i+1])
+                            min_x = min(min_x, x)
+                            max_x = max(max_x, x)
+                            min_y = min(min_y, y)
+                            max_y = max(max_y, y)
+                        except ValueError:
+                            continue
+        
+        # Process rect elements
+        elif elem.tag.endswith('rect'):
+            try:
+                x = float(elem.get('x', 0))
+                y = float(elem.get('y', 0))
+                width = float(elem.get('width', 0))
+                height = float(elem.get('height', 0))
+                
+                min_x = min(min_x, x)
+                max_x = max(max_x, x + width)
+                min_y = min(min_y, y)
+                max_y = max(max_y, y + height)
+            except ValueError:
+                pass
+        
+        # Process circle elements
+        elif elem.tag.endswith('circle'):
+            try:
+                cx = float(elem.get('cx', 0))
+                cy = float(elem.get('cy', 0))
+                r = float(elem.get('r', 0))
+                
+                min_x = min(min_x, cx - r)
+                max_x = max(max_x, cx + r)
+                min_y = min(min_y, cy - r)
+                max_y = max(max_y, cy + r)
+            except ValueError:
+                pass
+        
+        # Process ellipse elements
+        elif elem.tag.endswith('ellipse'):
+            try:
+                cx = float(elem.get('cx', 0))
+                cy = float(elem.get('cy', 0))
+                rx = float(elem.get('rx', 0))
+                ry = float(elem.get('ry', 0))
+                
+                min_x = min(min_x, cx - rx)
+                max_x = max(max_x, cx + rx)
+                min_y = min(min_y, cy - ry)
+                max_y = max(max_y, cy + ry)
+            except ValueError:
+                pass
+        
+        # Process line elements
+        elif elem.tag.endswith('line'):
+            try:
+                x1 = float(elem.get('x1', 0))
+                y1 = float(elem.get('y1', 0))
+                x2 = float(elem.get('x2', 0))
+                y2 = float(elem.get('y2', 0))
+                
+                min_x = min(min_x, x1, x2)
+                max_x = max(max_x, x1, x2)
+                min_y = min(min_y, y1, y2)
+                max_y = max(max_y, y1, y2)
+            except ValueError:
+                pass
+        
+        # Process polyline/polygon elements
+        elif elem.tag.endswith('polyline') or elem.tag.endswith('polygon'):
+            points_str = elem.get('points', '')
+            if points_str:
+                # Parse points string "x1,y1 x2,y2 x3,y3..."
+                points_pairs = points_str.split()
+                for point_pair in points_pairs:
+                    if ',' in point_pair:
+                        try:
+                            x, y = point_pair.split(',')
+                            x, y = float(x.strip()), float(y.strip())
+                            min_x = min(min_x, x)
+                            max_x = max(max_x, x)
+                            min_y = min(min_y, y)
+                            max_y = max(max_y, y)
+                        except ValueError:
+                            continue
+        
+        # Process child elements recursively
+        for child in elem:
+            process_element(child)
+    
+    process_element(element)
+    
+    # If no valid coordinates found, return default values
+    if min_x == float('inf'):
+        min_x = min_y = 0
+        max_x = max_y = 10  # Default small size
+    
+    return min_x, min_y, max_x, max_y
+
+
+def get_element_size(element: Element) -> Tuple[float, float]:
+    """
+    Calculate the width and height of an SVG element's bounding box.
+    Returns (width, height).
+    """
+    min_x, min_y, max_x, max_y = get_element_bounding_box(element)
+    width = max_x - min_x
+    height = max_y - min_y
+    return width, height
+
+
 def normalize_element_content(element: Element) -> str:
     """
     Normalize an SVG element content by removing IDs and normalizing coordinates.
@@ -1187,8 +1322,27 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             else:
                 combined_transform = ''
             
-            # Apply the combined transform to the replacement group
-            replacement.set('transform', combined_transform)
+            # Calculate offset based on size difference between find and replace elements
+            # Get the first matched group to represent the find element
+            find_element = matched_input_groups[0]
+            find_width, find_height = get_element_size(find_element)
+            replace_width, replace_height = get_element_size(replace_group)
+            
+            # Calculate offset: (find_size - replace_size) / 2
+            x_offset = (find_width - replace_width) / 2
+            y_offset = (find_height - replace_height) / 2
+            
+            # Create the offset transform
+            offset_transform = f"translate({x_offset:.3f},{y_offset:.3f})"
+            
+            # Apply the offset to the combined transform
+            if combined_transform:
+                final_transform = f"{combined_transform} {offset_transform}"
+            else:
+                final_transform = offset_transform
+            
+            # Apply the final transform to the replacement group
+            replacement.set('transform', final_transform)
             
             # Find the parent of the first matched group to replace the entire sequence in the same location
             parent = None

@@ -1,47 +1,46 @@
 ```
-# Compiled and build artifacts
-*.pyc
+# Image files (SVG in this case)
+*.svg
+
+# Python
 __pycache__/
-*.o
-*.obj
+*.pyc
+*.pyo
+*.pyd
 
 # Dependencies
 .venv/
 venv/
-node_modules/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Environment
+env/
 .env
 .env.local
 .env.*
 
-# Editors
-.vscode/
-.idea/
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# Distribution / packaging
+# Build artifacts
 dist/
 build/
-*.egg
 *.egg-info/
-*.whl
-MANIFEST
 
-# Python
+# Logs
+*.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Testing
 .pytest_cache/
 .mypy_cache/
-*.py[cod]
-*$py.class
-*.so
-.Python
 ```

@@ -6338,7 +6338,7 @@
 <ns0:polyline points="5181.59,4471.27 5181.59,4524.27 5132.83,4524.27 5132.83,4520.02 5177.34,4520.02 5177.34,4471.27 5181.59,4471.27 " />
 <ns0:polyline points="5128.33,4188.27 5128.33,4476.27 5133.58,4476.27 5133.58,4188.27 5128.33,4188.27 " />
 </ns0:g>
-<ns0:g id="replace_003_1" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(4334.6,3915.28) translate(-2864.8567,-804.11768)">
+<ns0:g id="replace_003_1" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(4334.6,3915.28) translate(-2864.8567,-804.11768) translate(-2518.135,-2365.265)">
     <ns0:g id="g34-0-4-7-8-3" transform="matrix(-0.03156348,-0.03156348,-0.03156348,0.03156348,2925.1054,923.3929)">
                 <ns0:circle id="path29-1-4-7-0-7" cx="1710.67" cy="-1031.6899" r="28.361" style="fill:#eff3ed" />
 
@@ -6754,7 +6754,7 @@
 <ns0:text transform="matrix(6 0 -0 7.5 4372.1 3960.56)" font-family="Arial,'sans-serif'" font-size="1.397">SX80 (2)</ns0:text>
 <ns0:text transform="matrix(6 0 -0 7.5 4316.6 3945.56)" font-family="Arial,'sans-serif'" font-size="1.397">LF</ns0:text>
 </ns0:g>
-<ns0:g id="replace_003_2" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(3890.63,3915.28) translate(-2864.8567,-804.11768)">
+<ns0:g id="replace_003_2" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(3890.63,3915.28) translate(-2864.8567,-804.11768) translate(-2518.135,-2365.265)">
     <ns0:g id="g34-0-4-7-8-3" transform="matrix(-0.03156348,-0.03156348,-0.03156348,0.03156348,2925.1054,923.3929)">
                 <ns0:circle id="path29-1-4-7-0-7" cx="1710.67" cy="-1031.6899" r="28.361" style="fill:#eff3ed" />
 
@@ -7170,7 +7170,7 @@
 <ns0:text transform="matrix(6 0 -0 7.5 3928.13 3960.56)" font-family="Arial,'sans-serif'" font-size="1.397">SX80 (2)</ns0:text>
 <ns0:text transform="matrix(6 0 -0 7.5 3872.64 3945.56)" font-family="Arial,'sans-serif'" font-size="1.397">LF</ns0:text>
 </ns0:g>
-<ns0:g id="replace_003_3" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(3440.62,3915.28) translate(-2864.8567,-804.11768)">
+<ns0:g id="replace_003_3" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(3440.62,3915.28) translate(-2864.8567,-804.11768) translate(-2518.135,-2365.265)">
     <ns0:g id="g34-0-4-7-8-3" transform="matrix(-0.03156348,-0.03156348,-0.03156348,0.03156348,2925.1054,923.3929)">
                 <ns0:circle id="path29-1-4-7-0-7" cx="1710.67" cy="-1031.6899" r="28.361" style="fill:#eff3ed" />
 
@@ -7586,7 +7586,7 @@
 <ns0:text transform="matrix(6 0 -0 7.5 3478.12 3960.56)" font-family="Arial,'sans-serif'" font-size="1.397">SX80 (2)</ns0:text>
 <ns0:text transform="matrix(6 0 -0 7.5 3422.62 3945.56)" font-family="Arial,'sans-serif'" font-size="1.397">LF</ns0:text>
 </ns0:g>
-<ns0:g id="replace_003_4" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(2876.59,3915.28) translate(-2864.8567,-804.11768)">
+<ns0:g id="replace_003_4" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(2876.59,3915.28) translate(-2864.8567,-804.11768) translate(-2518.135,-2365.265)">
     <ns0:g id="g34-0-4-7-8-3" transform="matrix(-0.03156348,-0.03156348,-0.03156348,0.03156348,2925.1054,923.3929)">
                 <ns0:circle id="path29-1-4-7-0-7" cx="1710.67" cy="-1031.6899" r="28.361" style="fill:#eff3ed" />
 
@@ -8002,7 +8002,7 @@
 <ns0:text transform="matrix(6 0 -0 7.5 2914.09 3960.56)" font-family="Arial,'sans-serif'" font-size="1.397">SX80 (2)</ns0:text>
 <ns0:text transform="matrix(6 0 -0 7.5 2858.6 3945.56)" font-family="Arial,'sans-serif'" font-size="1.397">LF</ns0:text>
 </ns0:g>
-<ns0:g id="replace_003_5" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(2624.57,3963.38) translate(-2864.8567,-804.11768)">
+<ns0:g id="replace_003_5" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(2624.57,3963.38) translate(-2864.8567,-804.11768) translate(-2518.135,-2365.265)">
     <ns0:g id="g34-0-4-7-8-3" transform="matrix(-0.03156348,-0.03156348,-0.03156348,0.03156348,2925.1054,923.3929)">
                 <ns0:circle id="path29-1-4-7-0-7" cx="1710.67" cy="-1031.6899" r="28.361" style="fill:#eff3ed" />
 
@@ -8417,7 +8417,7 @@
 <ns0:text transform="matrix(6 0 -0 7.5 2662.07 3993.66)" font-family="Arial,'sans-serif'" font-size="1.397">SX100 (2)</ns0:text>
 <ns0:text transform="matrix(6 0 -0 7.5 2606.57 3993.66)" font-family="Arial,'sans-serif'" font-size="1.397">LF</ns0:text>
 </ns0:g>
-<ns0:g id="replace_003_6" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(4334.6,4719.26) translate(-2864.8567,-804.11768)">
+<ns0:g id="replace_003_6" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(4334.6,4719.26) translate(-2864.8567,-804.11768) translate(-2518.135,-2365.265)">
     <ns0:g id="g34-0-4-7-8-3" transform="matrix(-0.03156348,-0.03156348,-0.03156348,0.03156348,2925.1054,923.3929)">
                 <ns0:circle id="path29-1-4-7-0-7" cx="1710.67" cy="-1031.6899" r="28.361" style="fill:#eff3ed" />
 
@@ -8833,7 +8833,7 @@
 <ns0:text transform="matrix(6 0 -0 7.5 4372.1 4699.54)" font-family="Arial,'sans-serif'" font-size="1.397">SX80 (2)</ns0:text>
 <ns0:text transform="matrix(6 0 -0 7.5 4316.6 4714.54)" font-family="Arial,'sans-serif'" font-size="1.397">LF</ns0:text>
 </ns0:g>
-<ns0:g id="replace_003_7" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(3890.63,4719.26) translate(-2864.8567,-804.11768)">
+<ns0:g id="replace_003_7" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(3890.63,4719.26) translate(-2864.8567,-804.11768) translate(-2518.135,-2365.265)">
     <ns0:g id="g34-0-4-7-8-3" transform="matrix(-0.03156348,-0.03156348,-0.03156348,0.03156348,2925.1054,923.3929)">
                 <ns0:circle id="path29-1-4-7-0-7" cx="1710.67" cy="-1031.6899" r="28.361" style="fill:#eff3ed" />
 
@@ -9249,7 +9249,7 @@
 <ns0:text transform="matrix(6 0 -0 7.5 3928.13 4699.54)" font-family="Arial,'sans-serif'" font-size="1.397">SX80 (2)</ns0:text>
 <ns0:text transform="matrix(6 0 -0 7.5 3872.64 4714.54)" font-family="Arial,'sans-serif'" font-size="1.397">LF</ns0:text>
 </ns0:g>
-<ns0:g id="replace_003_8" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(3440.62,4719.26) translate(-2864.8567,-804.11768)">
+<ns0:g id="replace_003_8" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(3440.62,4719.26) translate(-2864.8567,-804.11768) translate(-2518.135,-2365.265)">
     <ns0:g id="g34-0-4-7-8-3" transform="matrix(-0.03156348,-0.03156348,-0.03156348,0.03156348,2925.1054,923.3929)">
                 <ns0:circle id="path29-1-4-7-0-7" cx="1710.67" cy="-1031.6899" r="28.361" style="fill:#eff3ed" />
 
@@ -9665,7 +9665,7 @@
 <ns0:text transform="matrix(6 0 -0 7.5 3478.12 4699.54)" font-family="Arial,'sans-serif'" font-size="1.397">SX80 (2)</ns0:text>
 <ns0:text transform="matrix(6 0 -0 7.5 3422.62 4714.54)" font-family="Arial,'sans-serif'" font-size="1.397">LF</ns0:text>
 </ns0:g>
-<ns0:g id="replace_003_9" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(2877.14,4719.26) translate(-2864.8567,-804.11768)">
+<ns0:g id="replace_003_9" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(2877.14,4719.26) translate(-2864.8567,-804.11768) translate(-2518.135,-2365.265)">
     <ns0:g id="g34-0-4-7-8-3" transform="matrix(-0.03156348,-0.03156348,-0.03156348,0.03156348,2925.1054,923.3929)">
                 <ns0:circle id="path29-1-4-7-0-7" cx="1710.67" cy="-1031.6899" r="28.361" style="fill:#eff3ed" />
 
@@ -10081,7 +10081,7 @@
 <ns0:text transform="matrix(6 0 -0 7.5 2914.64 4699.54)" font-family="Arial,'sans-serif'" font-size="1.397">SX80 (2)</ns0:text>
 <ns0:text transform="matrix(6 0 -0 7.5 2859.15 4714.54)" font-family="Arial,'sans-serif'" font-size="1.397">LF</ns0:text>
 </ns0:g>
-<ns0:g id="replace_003_10" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(2624.57,4671.76) translate(-2864.8567,-804.11768)">
+<ns0:g id="replace_003_10" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(2624.57,4671.76) translate(-2864.8567,-804.11768) translate(-2518.135,-2365.265)">
     <ns0:g id="g34-0-4-7-8-3" transform="matrix(-0.03156348,-0.03156348,-0.03156348,0.03156348,2925.1054,923.3929)">
                 <ns0:circle id="path29-1-4-7-0-7" cx="1710.67" cy="-1031.6899" r="28.361" style="fill:#eff3ed" />
 
@@ -10496,7 +10496,7 @@
 <ns0:text transform="matrix(6 0 -0 7.5 2662.07 4667.04)" font-family="Arial,'sans-serif'" font-size="1.397">SX100 (2)</ns0:text>
 <ns0:text transform="matrix(6 0 -0 7.5 2606.57 4667.04)" font-family="Arial,'sans-serif'" font-size="1.397">LF</ns0:text>
 </ns0:g>
-<ns0:g id="replace_002_1" ns1:id="TURBOSOUND SPKR 2" transform="translate(4969.57,4317.27) matrix(0,-0.02558511,0.02558511,0,26.048299,39.168174)" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10">
+<ns0:g id="replace_002_1" ns1:id="TURBOSOUND SPKR 2" transform="translate(4969.57,4317.27) matrix(0,-0.02558511,0.02558511,0,26.048299,39.168174) translate(-1237.716,-786.400)" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10">
             <ns0:path id="path7-3-7-1-4-0" d="m 935.773,-496.707 -12.342,6.565 c 0,0 -6.171,1.576 -9.585,1.116 -3.414,-0.459 -6.827,-1.641 -10.044,-3.479 -3.217,-1.839 -7.616,-8.272 -8.141,-9.126 -0.525,-0.853 -3.479,-9.65 -3.742,-11.226 -0.263,-1.575 -0.591,-8.337 -0.656,-9.585 -0.066,-1.247 0.262,-11.029 0.393,-12.736 0.132,-1.707 9.06,-132.875 22.19,-243.692 13.13,-110.817 30.987,-207.454 32.562,-213.756 1.576,-6.302 4.924,-13.784 7.681,-17.074 2.758,-3.28 5.712,-5.31 9.782,-7.08 4.071,-1.78 7.484,-1.25 7.484,-1.25 l 2.692,0.59 2.167,0.19 c 0,0 1.575,0.27 2.297,0.53 0.722,0.26 3.151,2.1 3.151,2.1 l 1.707,1.77 0.263,0.53 z" style="fill:#404144" />
 
             <ns0:path id="path7-0-6-4-8-8" d="m 1486.38,-496.707 12.34,6.565 c 0,0 6.17,1.576 9.58,1.116 3.42,-0.459 6.83,-1.641 10.05,-3.479 3.21,-1.838 7.61,-8.272 8.14,-9.126 0.52,-0.853 3.48,-9.65 3.74,-11.226 0.26,-1.575 0.59,-8.337 0.66,-9.585 0.06,-1.247 -0.27,-11.029 -0.4,-12.736 -0.13,-1.707 -9.06,-132.875 -22.19,-243.692 -13.13,-110.817 -30.98,-207.454 -32.56,-213.756 -1.58,-6.302 -4.92,-13.784 -7.68,-17.074 -2.76,-3.28 -5.71,-5.31 -9.78,-7.08 -4.07,-1.78 -7.49,-1.25 -7.49,-1.25 l -2.69,0.59 -2.17,0.19 c 0,0 -1.57,0.27 -2.29,0.53 -0.73,0.26 -3.15,2.1 -3.15,2.1 l -1.71,1.77 -0.26,0.53 z" style="fill:#404144" />
@@ -10538,7 +10538,7 @@
 <ns0:text transform="matrix(-1.54994e-015 8.4375 -9.375 -1.72216e-015 4593.9 4228.8)" font-family="Arial,'sans-serif'" font-size="1.397">MIX</ns0:text>
 <ns0:text transform="matrix(-1.54994e-015 8.4375 -9.375 -1.72216e-015 4620.11 4220.61)" font-family="Arial,'sans-serif'" font-size="1.397">AUDIO</ns0:text>
 </ns0:g>
-<ns0:g id="replace_001_1" style="clip-rule:evenodd;display:inline;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(4706.7,4317.27) matrix(0.99995056,0,0,0.99995056,-3124.0262,-1104.9408)">
+<ns0:g id="replace_001_1" style="clip-rule:evenodd;display:inline;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" transform="translate(4706.7,4317.27) matrix(0.99995056,0,0,0.99995056,-3124.0262,-1104.9408) translate(-1214.692,-663.826)">
     <ns0:g id="MANFROTO-TRIPOD-2" ns1:id="MANFROTO TRIPOD 2" transform="matrix(-0.00540462,-0.43070583,-0.43070583,0.00540462,3189.4543,1169.7473)">
             <ns0:path id="path33-9-0-7" d="m 95.317,85.815 -2.508,2.919 -0.182,7.253 -0.117,5.397 0.378,2.054 c 1.182,1.276 1.171,0 1.628,-3.541 0.239,-1.855 0.497,-3.751 0.551,-5.632 0.053,-1.823 0.299,-3.539 0.535,-5.465 0.086,-0.699 0.172,-1.21 0.164,-1.673 -0.003,-0.171 -0.017,-0.473 0.062,-0.634 0.312,-0.627 0.456,-1.43 -0.511,-0.678 z" style="fill:#1e2128;fill-rule:nonzero;stroke:#1a1a1a;stroke-width:0.22px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4" />
 
