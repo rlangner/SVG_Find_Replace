@@ -1021,7 +1021,7 @@ def calculate_original_transform(groups: List[Element], input_root: Element) -> 
         transforms.reverse()
         combined_transform = ' '.join(transforms)
         # Add translation to center position
-        return f"translate({center_x},{center_y}) {combined_transform}"
+        return f"{combined_transform} translate({center_x},{center_y})"
     else:
         # Just use translation to center position
         return f"translate({center_x},{center_y})"
@@ -1126,9 +1126,20 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             
             # Calculate the original transform based on the matched groups in the input SVG
             original_transform = calculate_original_transform(matched_input_groups, input_root)
+            
+            # Get the replacement group's original transform (if any)
+            replacement_original_transform = replacement.get('transform', '')
+            
+            # Combine the replacement's original transform with the positioning transform
+            if replacement_original_transform:
+                # Apply the replacement's original transform first, then the positioning transform
+                combined_transform = f"{replacement_original_transform} {original_transform}"
+            else:
+                # Just use the positioning transform
+                combined_transform = original_transform
 
-            # Apply the calculated transform to the replacement group
-            replacement.set('transform', original_transform)
+            # Apply the combined transform to the replacement group
+            replacement.set('transform', combined_transform)
             
             # Find the parent of the first matched group to replace the entire sequence in the same location
             parent = None
