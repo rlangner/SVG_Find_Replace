@@ -1061,11 +1061,11 @@ def calculate_original_transform(groups: List[Element], input_root: Element) -> 
                                     continue
         
         if all_coords:
-            # Calculate the center of all coordinates to get a representative position
-            # Use the average of coordinates as a more robust position
-            avg_x = sum(coord[0] for coord in all_coords) / len(all_coords)
-            avg_y = sum(coord[1] for coord in all_coords) / len(all_coords)
-            return f"translate({avg_x},{avg_y})"
+            # Find the minimum x and y to get the top-left position
+            # This is often more representative than the average for positioning
+            min_x = min(coord[0] for coord in all_coords)
+            min_y = min(coord[1] for coord in all_coords)
+            return f"translate({min_x},{min_y})"
         else:
             # If no coordinates found in path elements, return empty string
             return ''
@@ -1172,9 +1172,23 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             # as the matched groups in the input SVG
             target_transform = calculate_original_transform(matched_input_groups, input_root)
             
-            # Apply the target transform to the replacement group
-            # We ignore the replacement's original transform and just use the positioning from matched group
-            replacement.set('transform', target_transform)
+            # Get the original transform of the replacement group
+            original_transform = replace_group.get('transform', '')
+            
+            # Combine the original transform with the target transform
+            # If both transforms exist, concatenate them; otherwise use whichever exists
+            if original_transform and target_transform:
+                # Apply target transform (positioning) first, then original transform
+                combined_transform = f"{target_transform} {original_transform}"
+            elif target_transform:
+                combined_transform = target_transform
+            elif original_transform:
+                combined_transform = original_transform
+            else:
+                combined_transform = ''
+            
+            # Apply the combined transform to the replacement group
+            replacement.set('transform', combined_transform)
             
             # Find the parent of the first matched group to replace the entire sequence in the same location
             parent = None
