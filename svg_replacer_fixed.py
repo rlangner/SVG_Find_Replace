@@ -942,9 +942,9 @@ def get_group_transform(group: Element) -> str:
     return ''
 
 
-def calculate_group_center(groups: List[Element]) -> Tuple[float, float]:
+def calculate_group_bounding_box(groups: List[Element]) -> Tuple[float, float, float, float]:
     """
-    Calculate the center position of a sequence of groups by analyzing their path elements.
+    Calculate the bounding box (min_x, min_y, max_x, max_y) of a sequence of groups by analyzing their path elements.
     """
     all_coords = []
     
@@ -980,13 +980,28 @@ def calculate_group_center(groups: List[Element]) -> Tuple[float, float]:
                                 continue
     
     if not all_coords:
-        return 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0
     
-    # Calculate the center (average) of all coordinates
-    avg_x = sum(coord[0] for coord in all_coords) / len(all_coords)
-    avg_y = sum(coord[1] for coord in all_coords) / len(all_coords)
+    # Calculate bounding box
+    min_x = min(coord[0] for coord in all_coords)
+    min_y = min(coord[1] for coord in all_coords)
+    max_x = max(coord[0] for coord in all_coords)
+    max_y = max(coord[1] for coord in all_coords)
     
-    return avg_x, avg_y
+    return min_x, min_y, max_x, max_y
+
+
+def calculate_group_center(groups: List[Element]) -> Tuple[float, float]:
+    """
+    Calculate the center position of a sequence of groups by analyzing their path elements.
+    """
+    min_x, min_y, max_x, max_y = calculate_group_bounding_box(groups)
+    
+    # Calculate the center of the bounding box
+    center_x = (min_x + max_x) / 2
+    center_y = (min_y + max_y) / 2
+    
+    return center_x, center_y
 
 
 def find_parent(element: Element, root: Element) -> Optional[Element]:
@@ -1182,6 +1197,11 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             # Calculate the center of the matched input groups
             matched_center_x, matched_center_y = calculate_group_center(matched_input_groups)
             
+            # Calculate the bounding box of the replacement group to get its width and height
+            min_x, min_y, max_x, max_y = calculate_group_bounding_box([replace_group])
+            replacement_width = max_x - min_x
+            replacement_height = max_y - min_y
+            
             # Calculate the center of the replacement group
             replacement_center_x, replacement_center_y = calculate_group_center([replace_group])
             
@@ -1190,6 +1210,11 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             # The translation needed is: (matched_center) - (replacement_center)
             translate_x = matched_center_x - replacement_center_x
             translate_y = matched_center_y - replacement_center_y
+            
+            # Now offset the position by the negative of half the width and height of the replace element
+            # as requested by the user
+            translate_x = translate_x - (replacement_width / 2)
+            translate_y = translate_y - (replacement_height / 2)
             
             # Create the centering transform
             centering_transform = f"translate({translate_x},{translate_y})"
