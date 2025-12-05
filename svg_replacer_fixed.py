@@ -1208,10 +1208,9 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             
             # To align the centers, we need to position the replacement element such that
             # its center coincides with the matched group's center
-            # We need to position the top-left corner of the replacement at the matched center
-            # and then offset by half the width and height to center it
-            translate_x = matched_center_x - (replacement_width / 2)
-            translate_y = matched_center_y - (replacement_height / 2)
+            # Calculate the translation needed to align the centers
+            translate_x = matched_center_x - replacement_center_x
+            translate_y = matched_center_y - replacement_center_y
             
             # Create the centering transform
             centering_transform = f"translate({translate_x},{translate_y})"
