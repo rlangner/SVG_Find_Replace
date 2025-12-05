@@ -1018,14 +1018,41 @@ def calculate_original_transform(groups: List[Element], input_root: Element) -> 
         transforms.reverse()
         return ' '.join(transforms)
     else:
-        # If no explicit transforms found, calculate position based on coordinates
-        # This handles cases where groups are positioned by their coordinate values
-        center_x, center_y = calculate_group_center(groups)
-        if center_x != 0.0 or center_y != 0.0:
-            return f"translate({center_x},{center_y})"
-        else:
-            # No transforms found and center is at origin, return empty string
-            return ''
+        # If no explicit transforms found in the hierarchy, 
+        # we need to find the position by looking at the content coordinates
+        # but we need to do this more carefully to avoid the issues with calculate_group_center
+        # Let's try to get the position from the first path element in the first group
+        for path_elem in first_group.iter():
+            if path_elem.tag.endswith('path') and path_elem.get('d'):
+                d_attr = path_elem.get('d')
+                # Extract first coordinate from path data
+                coords = re.findall(r'[-+]?\\d*\\.?\\d+', d_attr)
+                if coords and len(coords) >= 2:
+                    try:
+                        x = float(coords[0])
+                        y = float(coords[1])
+                        # Only use this if it's an absolute move command (M)
+                        if d_attr.strip().upper().startswith('M'):
+                            return f"translate({x},{y})"
+                    except ValueError:
+                        continue
+            elif path_elem.tag.endswith('polygon') or path_elem.tag.endswith('polyline'):
+                points = path_elem.get('points')
+                if points:
+                    # Parse first coordinate from points
+                    point_pairs = points.split()
+                    if point_pairs:
+                        first_point = point_pairs[0]
+                        if ',' in first_point:
+                            x, y = first_point.split(',')
+                            try:
+                                x = float(x.strip())
+                                y = float(y.strip())
+                                return f"translate({x},{y})"
+                            except ValueError:
+                                continue
+        # If no coordinate found in path elements, return empty string
+        return ''
 
 
 def get_element_position_info(element: Element) -> Tuple[Optional[str], Optional[str]]:
