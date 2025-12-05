@@ -1271,14 +1271,17 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             # Create offset transform
             offset_transform = f"translate({x_offset},{y_offset})"
             
-            # Combine the transforms: target_transform + offset + original_transform
+            # Combine the transforms: target_transform + original_transform + offset
+            # The order is important: we want the target transform to position the element correctly,
+            # then apply the original transform of the replacement element,
+            # then apply the offset to center it based on size differences
             transforms = []
             if target_transform:
                 transforms.append(target_transform)
-            if offset_transform:
-                transforms.append(offset_transform)
             if original_transform:
                 transforms.append(original_transform)
+            if offset_transform:
+                transforms.append(offset_transform)
                 
             combined_transform = ' '.join(transforms)
             
