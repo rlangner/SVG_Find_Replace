@@ -1015,15 +1015,14 @@ def calculate_original_transform(groups: List[Element], input_root: Element) -> 
                 break
         current = parent
     
-    # Combine existing transforms with translation to center position
+    # Combine existing transforms
     if transforms:
         # Reverse to apply parent transforms first
         transforms.reverse()
         combined_transform = ' '.join(transforms)
-        # Add translation to center position
-        return f"{combined_transform} translate({center_x},{center_y})"
+        return combined_transform
     else:
-        # Just use translation to center position
+        # If no transforms exist in the hierarchy, use translation to center position
         return f"translate({center_x},{center_y})"
 
 
@@ -1130,13 +1129,10 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             # Get the replacement group's original transform (if any)
             replacement_original_transform = replacement.get('transform', '')
             
-            # Combine the replacement's original transform with the positioning transform
-            if replacement_original_transform:
-                # Apply the replacement's original transform first, then the positioning transform
-                combined_transform = f"{replacement_original_transform} {original_transform}"
-            else:
-                # Just use the positioning transform
-                combined_transform = original_transform
+            # Use only the replacement's original transform - don't add positioning transforms
+            # The lookup.svg elements should be positioned correctly with their original transforms
+            # when placed in the correct structural location
+            combined_transform = replacement_original_transform
 
             # Apply the combined transform to the replacement group
             replacement.set('transform', combined_transform)
