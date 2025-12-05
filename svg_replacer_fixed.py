@@ -1198,23 +1198,20 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             matched_center_x, matched_center_y = calculate_group_center(matched_input_groups)
             
             # Calculate the bounding box of the replacement group to get its width and height
-            min_x, min_y, max_x, max_y = calculate_group_bounding_box([replace_group])
+            # We need to calculate this for the replacement copy that will be inserted
+            min_x, min_y, max_x, max_y = calculate_group_bounding_box([replacement])
             replacement_width = max_x - min_x
             replacement_height = max_y - min_y
             
             # Calculate the center of the replacement group
-            replacement_center_x, replacement_center_y = calculate_group_center([replace_group])
+            replacement_center_x, replacement_center_y = calculate_group_center([replacement])
             
             # To align the centers, we need to position the replacement element such that
             # its center coincides with the matched group's center
-            # The translation needed is: (matched_center) - (replacement_center)
-            translate_x = matched_center_x - replacement_center_x
-            translate_y = matched_center_y - replacement_center_y
-            
-            # Now offset the position by the negative of half the width and height of the replace element
-            # as requested by the user
-            translate_x = translate_x - (replacement_width / 2)
-            translate_y = translate_y - (replacement_height / 2)
+            # We need to position the top-left corner of the replacement at the matched center
+            # and then offset by half the width and height to center it
+            translate_x = matched_center_x - (replacement_width / 2)
+            translate_y = matched_center_y - (replacement_height / 2)
             
             # Create the centering transform
             centering_transform = f"translate({translate_x},{translate_y})"
