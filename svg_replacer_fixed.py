@@ -999,62 +999,11 @@ def find_parent(element: Element, root: Element) -> Optional[Element]:
     return None
 
 
-def calculate_element_bbox(element: Element) -> Tuple[float, float, float, float]:
-    """
-    Calculate the bounding box (min_x, min_y, max_x, max_y) of an element
-    by examining its path/polygon/polyline child elements.
-    """
-    all_coords = []
-    
-    for path_elem in element.iter():
-        if path_elem.tag.endswith('path') and path_elem.get('d'):
-            d_attr = path_elem.get('d')
-            # Extract all coordinates from path data
-            coords = re.findall(r'[-+]?\\d*\\.?\\d+', d_attr)
-            # Process coordinates in pairs (x, y)
-            for i in range(0, len(coords), 2):
-                if i + 1 < len(coords):
-                    try:
-                        x = float(coords[i])
-                        y = float(coords[i+1])
-                        all_coords.append((x, y))
-                    except ValueError:
-                        continue
-        elif path_elem.tag.endswith('polygon') or path_elem.tag.endswith('polyline'):
-            points = path_elem.get('points')
-            if points:
-                # Parse all coordinates from points
-                point_pairs = points.split()
-                for point_pair in point_pairs:
-                    if ',' in point_pair:
-                        x, y = point_pair.split(',')
-                        try:
-                            x = float(x.strip())
-                            y = float(y.strip())
-                            all_coords.append((x, y))
-                        except ValueError:
-                            continue
-    
-    if all_coords:
-        min_x = min(coord[0] for coord in all_coords)
-        min_y = min(coord[1] for coord in all_coords)
-        max_x = max(coord[0] for coord in all_coords)
-        max_y = max(coord[1] for coord in all_coords)
-        return min_x, min_y, max_x, max_y
-    else:
-        # If no coordinates found, return zero-sized box at origin
-        return 0.0, 0.0, 0.0, 0.0
-
-
-def calculate_original_transform(groups: List[Element], input_root: Element, replace_group: Element = None) -> str:
+def calculate_original_transform(groups: List[Element], input_root: Element) -> str:
     """
     Calculate the transform needed to position the replacement group at the same location
     as the matched groups in the input SVG.
-    If replace_group is provided, it will adjust the positioning to center the replacement
-    element on the original element based on their size differences.
     """
-    import re  # Import re module here to avoid UnboundLocalError
-    
     # Find the first group in the sequence to get its transform
     first_group = groups[0]
     
@@ -1072,7 +1021,7 @@ def calculate_original_transform(groups: List[Element], input_root: Element, rep
         # If there are explicit transforms in the hierarchy, use those
         # Apply transforms in the correct order (from parent to child)
         transforms.reverse()
-        base_transform = ' '.join(transforms)
+        return ' '.join(transforms)
     else:
         # If no explicit transforms found in the hierarchy, 
         # calculate the position by examining the coordinates of path elements
@@ -1116,69 +1065,10 @@ def calculate_original_transform(groups: List[Element], input_root: Element, rep
             # This is often more representative than the average for positioning
             min_x = min(coord[0] for coord in all_coords)
             min_y = min(coord[1] for coord in all_coords)
-            base_transform = f"translate({min_x},{min_y})"
+            return f"translate({min_x},{min_y})"
         else:
             # If no coordinates found in path elements, return empty string
-            base_transform = ''
-    
-    # If a replace group is provided, adjust the positioning to center it
-    if replace_group is not None and base_transform:
-        # Calculate the bounding box of the matched groups (original elements)
-        original_min_x = float('inf')
-        original_min_y = float('inf')
-        original_max_x = float('-inf')
-        original_max_y = float('-inf')
-        
-        for group in groups:
-            min_x, min_y, max_x, max_y = calculate_element_bbox(group)
-            original_min_x = min(original_min_x, min_x)
-            original_min_y = min(original_min_y, min_y)
-            original_max_x = max(original_max_x, max_x)
-            original_max_y = max(original_max_y, max_y)
-        
-        # Calculate the bounding box of the replacement group
-        replace_min_x, replace_min_y, replace_max_x, replace_max_y = calculate_element_bbox(replace_group)
-        
-        # Calculate the dimensions
-        original_width = original_max_x - original_min_x
-        original_height = original_max_y - original_min_y
-        replace_width = replace_max_x - replace_min_x
-        replace_height = replace_max_y - replace_min_y
-        
-        # Calculate the center positions
-        original_center_x = (original_min_x + original_max_x) / 2
-        original_center_y = (original_min_y + original_max_y) / 2
-        replace_center_x = (replace_min_x + replace_max_x) / 2
-        replace_center_y = (replace_min_y + replace_max_y) / 2
-        
-        # Calculate the offset needed to center the replacement on the original
-        # This is the key: we need to adjust the base translation to account for size differences
-        center_offset_x = original_center_x - replace_center_x
-        center_offset_y = original_center_y - replace_center_y
-        
-        # Extract translation from the base transform if it exists
-        translate_match = re.search(r'translate\\(([^)]+)\\)', base_transform)
-        if translate_match:
-            # Extract the original translation values
-            translate_args = translate_match.group(1).split(',')
-            orig_x = float(translate_args[0].strip())
-            orig_y = float(translate_args[1].strip()) if len(translate_args) > 1 else orig_x
-            
-            # Apply the centering offset to the original translation
-            adjusted_x = orig_x + center_offset_x
-            adjusted_y = orig_y + center_offset_y
-            
-            # Replace the translation in the base transform
-            adjusted_transform = base_transform.replace(
-                f"translate({translate_match.group(1)})", 
-                f"translate({adjusted_x},{adjusted_y})"
-            )
-            return adjusted_transform
-        else:
-            # If no translation in base transform, add one with the offset
-            return f"translate({center_offset_x},{center_offset_y}) {base_transform}".strip()
-    
-    return base_transform
+            return ''
 
 
 def get_element_position_info(element: Element) -> Tuple[Optional[str], Optional[str]]:
@@ -1279,14 +1169,16 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
             
             # Calculate the transform needed to position the replacement group at the same location
-            # as the matched groups in the input SVG, accounting for size differences to center it
-            target_transform = calculate_original_transform(matched_input_groups, input_root, replace_group)
+            # as the matched groups in the input SVG
+            target_transform = calculate_original_transform(matched_input_groups, input_root)
             
             # Get the original transform of the replacement group
             original_transform = replace_group.get('transform', '')
             
-            # Apply the target transform first (for positioning with centering), then the original transform
+            # Combine the original transform with the target transform
+            # If both transforms exist, concatenate them; otherwise use whichever exists
             if original_transform and target_transform:
+                # Apply target transform (positioning) first, then original transform
                 combined_transform = f"{target_transform} {original_transform}"
             elif target_transform:
                 combined_transform = target_transform
