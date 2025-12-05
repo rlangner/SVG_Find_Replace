@@ -989,6 +989,16 @@ def calculate_group_center(groups: List[Element]) -> Tuple[float, float]:
     return avg_x, avg_y
 
 
+def find_parent(element: Element, root: Element) -> Optional[Element]:
+    """
+    Find the parent of an element in the SVG tree.
+    """
+    for parent in root.iter():
+        if element in list(parent):
+            return parent
+    return None
+
+
 def calculate_original_transform(groups: List[Element], input_root: Element) -> str:
     """
     Calculate the transform needed to position the replacement group at the same location
@@ -1004,16 +1014,12 @@ def calculate_original_transform(groups: List[Element], input_root: Element) -> 
         transform_attr = current.get('transform')
         if transform_attr:
             transforms.append(transform_attr)
-        # Use a more reliable method to get the parent
-        parent = None
-        for p in input_root.iter():
-            if current in list(p):
-                parent = p
-                break
+        parent = find_parent(current, input_root)
         current = parent
     
     if transforms:
         # If there are explicit transforms in the hierarchy, use those
+        # Apply transforms in the correct order (from parent to child)
         transforms.reverse()
         return ' '.join(transforms)
     else:
@@ -1056,13 +1062,10 @@ def calculate_original_transform(groups: List[Element], input_root: Element) -> 
         
         if all_coords:
             # Calculate the center of all coordinates to get a representative position
-            # Use the first coordinate as a reference point for more consistent positioning
-            # since the first coordinate often represents the top-left or origin of the shape
-            if len(all_coords) > 0:
-                # Sort coordinates to find the top-left most point
-                sorted_coords = sorted(all_coords, key=lambda coord: (coord[0], coord[1]))
-                first_coord = sorted_coords[0]  # This should be the top-left most point
-                return f"translate({first_coord[0]},{first_coord[1]})"
+            # Use the average of coordinates as a more robust position
+            avg_x = sum(coord[0] for coord in all_coords) / len(all_coords)
+            avg_y = sum(coord[1] for coord in all_coords) / len(all_coords)
+            return f"translate({avg_x},{avg_y})"
         else:
             # If no coordinates found in path elements, return empty string
             return ''
