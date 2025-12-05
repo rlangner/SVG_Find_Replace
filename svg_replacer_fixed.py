@@ -1124,22 +1124,16 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             occurrence_counts[find_id] = occurrence_counts.get(find_id, 0) + 1
             replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
             
-            # Calculate the original transform based on the matched groups in the input SVG
-            original_transform = calculate_original_transform(matched_input_groups, input_root)
+            # Calculate the transform needed to position the replacement group at the same location
+            # as the matched groups in the input SVG
+            position_transform = calculate_original_transform(matched_input_groups, input_root)
             
-            # Get the replacement group's original transform (if any)
+            # Get the replacement group's original transform (if any) - this is internal to the replacement
             replacement_original_transform = replacement.get('transform', '')
             
-            # Combine the replacement's original transform with the positioning transform
-            if replacement_original_transform:
-                # Apply the replacement's original transform first, then the positioning transform
-                combined_transform = f"{replacement_original_transform} {original_transform}"
-            else:
-                # Just use the positioning transform
-                combined_transform = original_transform
-
-            # Apply the combined transform to the replacement group
-            replacement.set('transform', combined_transform)
+            # For positioning in the new context, we only use the calculated position transform
+            # The replacement's original transform is ignored for global positioning
+            replacement.set('transform', position_transform)
             
             # Find the parent of the first matched group to replace the entire sequence in the same location
             parent = None
