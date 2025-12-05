@@ -1085,13 +1085,14 @@ def calculate_original_transform(groups: List[Element], input_root: Element, rep
         # Calculate the center and dimensions of the replacement group
         rep_center_x, rep_center_y, rep_width, rep_height = calculate_element_center_and_size(replacement_group)
         
-        # Adjust the center position to account for the replacement group's dimensions
-        # This ensures the center of the replacement group aligns with the center of the original group
-        # We need to move the replacement group so that its center point lands at the original center
-        # The adjustment should be: original_center - (replacement_local_center - replacement_origin_offset)
-        # Since we want the replacement's center to be at the original center
-        adjusted_center_x = center_x - rep_center_x  # This shifts the replacement group appropriately
-        adjusted_center_y = center_y - rep_center_y  # This shifts the replacement group appropriately
+        # To center the replacement group at the original center location,
+        # we need to position the replacement group so that its geometric center
+        # (based on its width and height) aligns with the original center
+        # The center of the replacement group's bounding box is offset from its origin by (rep_width/2, rep_height/2)
+        # So to place the center at (center_x, center_y), we position the replacement group's origin at:
+        # (center_x - rep_width/2, center_y - rep_height/2)
+        adjusted_center_x = center_x - rep_width / 2
+        adjusted_center_y = center_y - rep_height / 2
     else:
         # Use original behavior if no replacement group provided
         adjusted_center_x = center_x
