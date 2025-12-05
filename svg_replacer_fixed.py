@@ -1117,6 +1117,91 @@ def get_element_position_info(element: Element) -> Tuple[Optional[str], Optional
     return transform, coords_info
 
 
+def get_element_dimensions(element: Element) -> Tuple[float, float]:
+    """
+    Extract width and height of an SVG element by analyzing its contents.
+    This function calculates the bounding box of the element based on its children.
+    """
+    # Initialize bounds with extreme values
+    min_x, min_y = float('inf'), float('inf')
+    max_x, max_y = float('-inf'), float('-inf')
+    
+    # Process all child elements to find bounding box
+    for child in element.iter():
+        if child.tag.endswith('path'):
+            # Process path element
+            path_d = child.get('d', '')
+            if path_d:
+                # Extract coordinates from path data
+                coords = re.findall(r'[-+]?\d*\.\d+|\d+', path_d)
+                # Convert to float and process pairs
+                for i in range(0, len(coords), 2):
+                    if i + 1 < len(coords):
+                        try:
+                            x = float(coords[i])
+                            y = float(coords[i + 1])
+                            min_x = min(min_x, x)
+                            max_x = max(max_x, x)
+                            min_y = min(min_y, y)
+                            max_y = max(max_y, y)
+                        except ValueError:
+                            continue
+        elif child.tag.endswith('polygon') or child.tag.endswith('polyline'):
+            # Process polygon/polyline element
+            points = child.get('points', '')
+            if points:
+                point_pairs = points.split()
+                for point_pair in point_pairs:
+                    xy = point_pair.split(',')
+                    if len(xy) == 2:
+                        try:
+                            x = float(xy[0].strip())
+                            y = float(xy[1].strip())
+                            min_x = min(min_x, x)
+                            max_x = max(max_x, x)
+                            min_y = min(min_y, y)
+                            max_y = max(max_y, y)
+                        except ValueError:
+                            continue
+        elif child.tag.endswith('rect'):
+            # Process rect element
+            try:
+                x = float(child.get('x', 0))
+                y = float(child.get('y', 0))
+                width = float(child.get('width', 0))
+                height = float(child.get('height', 0))
+                
+                min_x = min(min_x, x)
+                max_x = max(max_x, x + width)
+                min_y = min(min_y, y)
+                max_y = max(max_y, y + height)
+            except ValueError:
+                continue
+        elif child.tag.endswith('circle') or child.tag.endswith('ellipse'):
+            # Process circle/ellipse element
+            try:
+                cx = float(child.get('cx', 0))
+                cy = float(child.get('cy', 0))
+                rx = float(child.get('r', child.get('rx', 0)))
+                ry = float(child.get('ry', rx))
+                
+                min_x = min(min_x, cx - rx)
+                max_x = max(max_x, cx + rx)
+                min_y = min(min_y, cy - ry)
+                max_y = max(max_y, cy + ry)
+            except ValueError:
+                continue
+    
+    # If no bounds were found, return default dimensions
+    if min_x == float('inf') or min_y == float('inf'):
+        return 0.0, 0.0
+    
+    width = max_x - min_x
+    height = max_y - min_y
+    
+    return abs(width), abs(height)
+
+
 def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_path: str):
     """
     Main function to replace matching groups in input SVG with replacement groups from lookup SVG.
@@ -1175,17 +1260,27 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             # Get the original transform of the replacement group
             original_transform = replace_group.get('transform', '')
             
-            # Combine the original transform with the target transform
-            # If both transforms exist, concatenate them; otherwise use whichever exists
-            if original_transform and target_transform:
-                # Apply target transform (positioning) first, then original transform
-                combined_transform = f"{target_transform} {original_transform}"
-            elif target_transform:
-                combined_transform = target_transform
-            elif original_transform:
-                combined_transform = original_transform
-            else:
-                combined_transform = ''
+            # Get dimensions of the find and replace groups to calculate offset
+            find_width, find_height = get_element_dimensions(matched_input_groups[0])
+            replace_width, replace_height = get_element_dimensions(replace_group)
+            
+            # Calculate offset based on size difference
+            x_offset = (find_width - replace_width) / 2
+            y_offset = (find_height - replace_height) / 2
+            
+            # Create offset transform
+            offset_transform = f"translate({x_offset},{y_offset})"
+            
+            # Combine the transforms: target_transform + offset + original_transform
+            transforms = []
+            if target_transform:
+                transforms.append(target_transform)
+            if offset_transform:
+                transforms.append(offset_transform)
+            if original_transform:
+                transforms.append(original_transform)
+                
+            combined_transform = ' '.join(transforms)
             
             # Apply the combined transform to the replacement group
             replacement.set('transform', combined_transform)

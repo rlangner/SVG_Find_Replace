@@ -24,7 +24,7 @@ node_modules/
 .vscode/
 .idea/
 
-# Coverage reports
+# Coverage
 coverage/
 htmlcov/
 .coverage
@@ -32,16 +32,12 @@ htmlcov/
 # Distribution / packaging
 dist/
 build/
-*.egg
 *.egg-info/
-*.whl
-MANIFEST
-
-# Python
+.Python
 .pytest_cache/
 .mypy_cache/
-*.py[cod]
-*$py.class
-*.so
-.Python
+
+# System files
+.DS_Store
+Thumbs.db
 ```
