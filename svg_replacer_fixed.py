@@ -1061,13 +1061,20 @@ def calculate_original_transform(groups: List[Element], input_root: Element) -> 
                                     continue
         
         if all_coords:
-            # Find the minimum x and y to get the top-left position
-            # This is often more representative than the average for positioning
+            # Calculate the center of the matched groups for positioning
+            matched_center_x = sum(coord[0] for coord in all_coords) / len(all_coords)
+            matched_center_y = sum(coord[1] for coord in all_coords) / len(all_coords)
+            
+            # Find the minimum x and y to get the top-left position for comparison
             min_x = min(coord[0] for coord in all_coords)
             min_y = min(coord[1] for coord in all_coords)
-            return f"translate({min_x},{min_y})"
+            
+            print(f"DEBUG: Positioning - Min coordinates: ({min_x}, {min_y}), Matched group center: ({matched_center_x}, {matched_center_y}), Total coords: {len(all_coords)}")
+            
+            return f"translate({matched_center_x},{matched_center_y})"
         else:
             # If no coordinates found in path elements, return empty string
+            print("DEBUG: No coordinates found for positioning")
             return ''
 
 
