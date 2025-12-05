@@ -942,14 +942,67 @@ def get_group_transform(group: Element) -> str:
     return ''
 
 
-def calculate_group_position(group: Element, input_root: Element) -> str:
+def calculate_group_center(groups: List[Element]) -> Tuple[float, float]:
     """
-    Calculate the absolute position of a group by looking at its transform and parent transforms.
+    Calculate the center position of a sequence of groups by analyzing their path elements.
     """
-    transforms = []
+    all_coords = []
     
-    # Collect all transforms from the group up to the root
-    current = group
+    for group in groups:
+        # Extract coordinates from path elements in this group
+        for path_elem in group.iter():
+            if path_elem.tag.endswith('path') and path_elem.get('d'):
+                d_attr = path_elem.get('d')
+                # Extract coordinates from path data
+                coords = re.findall(r'[-+]?\\d*\\.?\\d+', d_attr)
+                # Process coordinates in pairs (x, y)
+                for i in range(0, len(coords), 2):
+                    if i + 1 < len(coords):
+                        try:
+                            x = float(coords[i])
+                            y = float(coords[i + 1])
+                            all_coords.append((x, y))
+                        except ValueError:
+                            continue
+            elif path_elem.tag.endswith('polygon') or path_elem.tag.endswith('polyline'):
+                points = path_elem.get('points')
+                if points:
+                    # Parse coordinates from points attribute
+                    point_pairs = points.split()
+                    for point_pair in point_pairs:
+                        if ',' in point_pair:
+                            x, y = point_pair.split(',')
+                            try:
+                                x = float(x.strip())
+                                y = float(y.strip())
+                                all_coords.append((x, y))
+                            except ValueError:
+                                continue
+    
+    if not all_coords:
+        return 0.0, 0.0
+    
+    # Calculate the center (average) of all coordinates
+    avg_x = sum(coord[0] for coord in all_coords) / len(all_coords)
+    avg_y = sum(coord[1] for coord in all_coords) / len(all_coords)
+    
+    return avg_x, avg_y
+
+
+def calculate_original_transform(groups: List[Element], input_root: Element) -> str:
+    """
+    Calculate the transform needed to position the replacement group at the same location
+    as the matched groups in the input SVG.
+    """
+    # Get the center of the matched groups
+    center_x, center_y = calculate_group_center(groups)
+    
+    # Find the first group in the sequence to get its transform
+    first_group = groups[0]
+    
+    # Collect all transforms from the first group up to the root
+    transforms = []
+    current = first_group
     while current is not None and current != input_root:
         transform_attr = current.get('transform')
         if transform_attr:
@@ -962,14 +1015,16 @@ def calculate_group_position(group: Element, input_root: Element) -> str:
                 break
         current = parent
     
-    # Combine transforms if there are multiple
+    # Combine existing transforms with translation to center position
     if transforms:
         # Reverse to apply parent transforms first
         transforms.reverse()
         combined_transform = ' '.join(transforms)
-        return combined_transform
-    
-    return ''
+        # Add translation to center position
+        return f"translate({center_x},{center_y}) {combined_transform}"
+    else:
+        # Just use translation to center position
+        return f"translate({center_x},{center_y})"
 
 
 def get_element_position_info(element: Element) -> Tuple[Optional[str], Optional[str]]:
@@ -1062,9 +1117,6 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
         print(f"Replacing groups matching {find_id} with {replace_id}")
         
         if matched_input_groups:
-            # Get the transform from the first matched group in the sequence to determine placement
-            first_group_transform = get_group_transform(matched_input_groups[0])
-            
             # Create a deep copy of the replacement group
             replacement = copy.deepcopy(replace_group)
             
@@ -1072,15 +1124,11 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             occurrence_counts[find_id] = occurrence_counts.get(find_id, 0) + 1
             replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
             
-            # Calculate the absolute position of the first matched group
-            absolute_position = calculate_group_position(matched_input_groups[0], input_root)
+            # Calculate the original transform based on the matched groups in the input SVG
+            original_transform = calculate_original_transform(matched_input_groups, input_root)
 
-            # Apply the transform from the first matched group to the replacement if it doesn't already have one
-            # Prefer the absolute position if available, otherwise use the direct transform
-            if absolute_position and 'transform' not in replacement.attrib:
-                replacement.set('transform', absolute_position)
-            elif first_group_transform and 'transform' not in replacement.attrib:
-                replacement.set('transform', first_group_transform)
+            # Apply the calculated transform to the replacement group
+            replacement.set('transform', original_transform)
             
             # Find the parent of the first matched group to replace the entire sequence in the same location
             parent = None
