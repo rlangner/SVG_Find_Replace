@@ -14,6 +14,9 @@ import copy
 from typing import Dict, List, Tuple, Optional
 import sys
 
+# Import the improved bounding box calculation functions
+from svg_bounding_box import calculate_group_bbox
+
 
 def normalize_color(color):
     """
@@ -991,16 +994,60 @@ def calculate_group_bounding_box(groups: List[Element]) -> Tuple[float, float, f
     return min_x, min_y, max_x, max_y
 
 
+def calculate_group_center_improved(groups: List[Element], svg_root) -> Tuple[float, float]:
+    """
+    Calculate the center position of a sequence of groups using the improved bounding box calculation.
+    This function creates a temporary group containing the elements to pass to calculate_group_bbox.
+    """
+    import xml.etree.ElementTree as ET
+    import uuid
+    
+    # Create a temporary SVG structure to pass to calculate_group_bbox
+    # We'll create a temporary group with a unique ID
+    temp_group = ET.Element('g')
+    temp_id = f"temp_group_{uuid.uuid4().hex[:8]}"
+    temp_group.set('id', temp_id)
+    
+    # Add all the elements from the groups to the temporary group
+    for group in groups:
+        # Deep copy each element to avoid modifying the original
+        temp_group.append(copy.deepcopy(group))
+    
+    # Add the temporary group to the SVG root temporarily
+    svg_root.append(temp_group)
+    
+    try:
+        # Calculate the bounding box of the temporary group
+        bbox = calculate_group_bbox(svg_root, temp_id)
+        
+        if bbox:
+            # Calculate the center of the bounding box
+            center_x = (bbox['min_x'] + bbox['max_x']) / 2
+            center_y = (bbox['min_y'] + bbox['max_y']) / 2
+            
+            return center_x, center_y
+        else:
+            # Fallback to the old method if bounding box calculation fails
+            min_x, min_y, max_x, max_y = calculate_group_bounding_box(groups)
+            center_x = (min_x + max_x) / 2
+            center_y = (min_y + max_y) / 2
+            return center_x, center_y
+    finally:
+        # Remove the temporary group from the root
+        svg_root.remove(temp_group)
+
+
 def calculate_group_center(groups: List[Element]) -> Tuple[float, float]:
     """
     Calculate the center position of a sequence of groups by analyzing their path elements.
+    This is the old implementation for fallback use.
     """
     min_x, min_y, max_x, max_y = calculate_group_bounding_box(groups)
-    
+
     # Calculate the center of the bounding box
     center_x = (min_x + max_x) / 2
     center_y = (min_y + max_y) / 2
-    
+
     return center_x, center_y
 
 
@@ -1194,31 +1241,48 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             original_transform = replace_group.get('transform', '')
             
             # For center-to-center alignment, we need to calculate the centers of both groups
-            # Calculate the center of the matched input groups
-            matched_center_x, matched_center_y = calculate_group_center(matched_input_groups)
+            # Calculate the center of the matched input groups using the improved method
+            matched_center_x, matched_center_y = calculate_group_center_improved(matched_input_groups, input_root)
             
             # Calculate the bounding box of the replacement group to get its width and height
             # We need to calculate this for the replacement copy that will be inserted
-            min_x, min_y, max_x, max_y = calculate_group_bounding_box([replacement])
-            replacement_width = max_x - min_x
-            replacement_height = max_y - min_y
+            # Create a temporary group to calculate the replacement's bounding box with transforms
+            import uuid
+            temp_replacement_id = f"temp_replacement_{uuid.uuid4().hex[:8]}"
+            replacement.set('id', temp_replacement_id)
+            input_root.append(replacement)  # Add temporarily to calculate bbox
             
-            # Calculate the center of the replacement group
-            replacement_center_x, replacement_center_y = calculate_group_center([replacement])
+            try:
+                replacement_bbox = calculate_group_bbox(input_root, temp_replacement_id)
+                if replacement_bbox:
+                    replacement_width = replacement_bbox['width']
+                    replacement_height = replacement_bbox['height']
+                    replacement_center_x = (replacement_bbox['min_x'] + replacement_bbox['max_x']) / 2
+                    replacement_center_y = (replacement_bbox['min_y'] + replacement_bbox['max_y']) / 2
+                else:
+                    # Fallback to the old method if bounding box calculation fails
+                    min_x, min_y, max_x, max_y = calculate_group_bounding_box([replacement])
+                    replacement_width = max_x - min_x
+                    replacement_height = max_y - min_y
+                    replacement_center_x, replacement_center_y = calculate_group_center([replacement])
+            finally:
+                # Remove the temporary replacement from root
+                input_root.remove(replacement)
+                # Restore original ID if needed
+                replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
             
             # To align the centers, we need to position the replacement element such that
             # its center coincides with the matched group's center
-            # We need to position the top-left corner of the replacement at the matched center
-            # and then offset by half the width and height to center it
-            translate_x = matched_center_x - (replacement_width / 2)
-            translate_y = matched_center_y - (replacement_height / 2)
+            # Calculate the translation needed to move the replacement's center to the matched group's center
+            center_offset_x = matched_center_x - replacement_center_x
+            center_offset_y = matched_center_y - replacement_center_y
             
             # Create the centering transform
-            centering_transform = f"translate({translate_x},{translate_y})"
+            centering_transform = f"translate({center_offset_x},{center_offset_y})"
             
-            # Combine the transforms: first centering, then apply the original transform of replacement
+            # Combine the transforms: first apply the original transform of replacement, then centering
             if original_transform:
-                combined_transform = f"{centering_transform} {original_transform}"
+                combined_transform = f"{original_transform} {centering_transform}"
             else:
                 combined_transform = centering_transform
             
