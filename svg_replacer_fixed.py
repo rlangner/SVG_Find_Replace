@@ -1249,7 +1249,14 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             # Create a temporary group to calculate the replacement's bounding box with transforms
             import uuid
             temp_replacement_id = f"temp_replacement_{uuid.uuid4().hex[:8]}"
+            
+            # Store original transform and temporarily remove it for center calculation
             replacement.set('id', temp_replacement_id)
+            original_replacement_transform = replacement.get('transform')
+            if original_replacement_transform:
+                # Temporarily remove the transform to calculate the "natural" center
+                replacement.set('transform', '')
+            
             input_root.append(replacement)  # Add temporarily to calculate bbox
             
             try:
@@ -1268,8 +1275,10 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             finally:
                 # Remove the temporary replacement from root
                 input_root.remove(replacement)
-                # Restore original ID if needed
+                # Restore original ID and transform if needed
                 replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
+                if original_replacement_transform:
+                    replacement.set('transform', original_replacement_transform)
             
             # To align the centers, we need to position the replacement element such that
             # its center coincides with the matched group's center
