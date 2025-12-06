@@ -127,15 +127,16 @@ def get_element_bbox(element):
         # Parse the path using svgpathtools
         path = parse_path(d)
         
-        # Get the exact bounding box of the path using svgpathtools
-        # This is more accurate than sampling points
-        if len(path) > 0:
-            # Get the bounding box of the path
-            xmin, xmax, ymin, ymax = path.bbox()
-            # Return the 4 corners of the bounding box
-            return [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
-        else:
-            return []
+        # Sample points along the path to get bounding box
+        # We'll sample at regular intervals to approximate the path shape
+        points = []
+        for segment in path:
+            # Sample points along each segment
+            for t in np.linspace(0, 1, 20):  # 20 points per segment
+                point = segment.point(t)
+                points.append((point.real, point.imag))
+        
+        return points
     
     elif element.tag.endswith('}line'):
         x1 = float(element.get('x1', 0))
@@ -148,7 +149,7 @@ def get_element_bbox(element):
         # For groups and other elements, we'll return None and handle children separately
         return None
 
-def calculate_group_bbox(svg_root, group_id):
+def calculate_group_bbox_debug(svg_root, group_id):
     """Calculate the bounding box of a group with all transforms applied."""
     # Find the group element by ID
     target_group = None
@@ -160,12 +161,43 @@ def calculate_group_bbox(svg_root, group_id):
     if target_group is None:
         return None
     
-    # Collect all points from the group's content WITH their individual transforms applied but WITHOUT the group's transform
-    raw_points = []
+    # Find all leaf elements within the group and calculate their bounding boxes
+    all_points = []
     
-    def collect_raw_points(elem):
-        """Recursively collect all raw points from elements within the group."""
-        # Get element's own transform (excluding the group's transform)
+    def collect_points_from_element(elem, parent_matrix):
+        """Recursively collect all points from elements within the group."""
+        # Get element's own transform
+        elem_transform = elem.get('transform')
+        elem_matrix = parse_transform(elem_transform) if elem_transform else [1, 0, 0, 1, 0, 0]
+        
+        # Combine parent and element transforms
+        combined_matrix = multiply_matrices(parent_matrix, elem_matrix)
+        
+        # Get the element's bounding box points
+        elem_bbox = get_element_bbox(elem)
+        
+        if elem_bbox is not None:
+            # Transform each point by the combined matrix
+            for point in elem_bbox:
+                transformed_point = apply_transform_to_point(point, combined_matrix)
+                all_points.append(transformed_point)
+        
+        # Recursively process child elements
+        for child in elem:
+            collect_points_from_element(child, combined_matrix)
+    
+    # Start with identity matrix for the group itself
+    group_transform = target_group.get('transform')
+    print(f"Group {group_id} transform: {group_transform}")
+    initial_matrix = parse_transform(group_transform) if group_transform else [1, 0, 0, 1, 0, 0]
+    print(f"Parsed transform matrix: {initial_matrix}")
+    
+    # Calculate bbox WITHOUT applying the group transform first
+    temp_points = []
+    
+    def collect_points_without_group_transform(elem):
+        """Collect points without applying the group's own transform."""
+        # Get element's own transform (but not the group's transform)
         elem_transform = elem.get('transform')
         elem_matrix = parse_transform(elem_transform) if elem_transform else [1, 0, 0, 1, 0, 0]
         
@@ -173,92 +205,65 @@ def calculate_group_bbox(svg_root, group_id):
         elem_bbox = get_element_bbox(elem)
         
         if elem_bbox is not None:
-            # Transform each point by the element's matrix only (not the group's)
+            # Transform each point by the element's matrix only
             for point in elem_bbox:
                 transformed_point = apply_transform_to_point(point, elem_matrix)
-                raw_points.append(transformed_point)
+                temp_points.append(transformed_point)
         
         # Recursively process child elements
         for child in elem:
-            collect_raw_points(child)
+            collect_points_without_group_transform(child)
     
-    collect_raw_points(target_group)
+    print("Calculating bbox without group transform first:")
+    collect_points_without_group_transform(target_group)
     
-    if not raw_points:
+    if temp_points:
+        min_x = min(point[0] for point in temp_points)
+        max_x = max(point[0] for point in temp_points)
+        min_y = min(point[1] for point in temp_points)
+        max_y = max(point[1] for point in temp_points)
+        width = max_x - min_x
+        height = max_y - min_y
+        print(f"  Raw bbox (before group transform): W:{width} H:{height}")
+        print(f"  Raw bbox coords: ({min_x}, {min_y}) to ({max_x}, {max_y})")
+        
+        # Now apply the group's transform to the corners of this bbox
+        corners = [(min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)]
+        transformed_corners = [apply_transform_to_point(corner, initial_matrix) for corner in corners]
+        
+        print(f"  Transformed corners: {transformed_corners}")
+        
+        min_x_t = min(point[0] for point in transformed_corners)
+        max_x_t = max(point[0] for point in transformed_corners)
+        min_y_t = min(point[1] for point in transformed_corners)
+        max_y_t = max(point[1] for point in transformed_corners)
+        width_t = max_x_t - min_x_t
+        height_t = max_y_t - min_y_t
+        print(f"  Final bbox (after group transform): W:{width_t} H:{height_t}")
+    
+    print("\nNow calculating with original method:")
+    collect_points_from_element(target_group, initial_matrix)
+    
+    if not all_points:
         return None
     
-    # Calculate the raw bounding box (before applying the group's transform)
-    min_x_raw = min(point[0] for point in raw_points)
-    max_x_raw = max(point[0] for point in raw_points)
-    min_y_raw = min(point[1] for point in raw_points)
-    max_y_raw = max(point[1] for point in raw_points)
-    
-    # Get the group's transform
-    group_transform = target_group.get('transform')
-    group_matrix = parse_transform(group_transform) if group_transform else [1, 0, 0, 1, 0, 0]
-    
-    # Apply the group's transform to the 4 corners of the raw bounding box
-    corners = [
-        (min_x_raw, min_y_raw),
-        (max_x_raw, min_y_raw), 
-        (max_x_raw, max_y_raw),
-        (min_x_raw, max_y_raw)
-    ]
-    
-    transformed_corners = [apply_transform_to_point(corner, group_matrix) for corner in corners]
-    
-    # Calculate the final bounding box from the transformed corners
-    min_x = min(point[0] for point in transformed_corners)
-    max_x = max(point[0] for point in transformed_corners)
-    min_y = min(point[1] for point in transformed_corners)
-    max_y = max(point[1] for point in transformed_corners)
+    # Calculate the bounding box from all transformed points
+    min_x = min(point[0] for point in all_points)
+    max_x = max(point[0] for point in all_points)
+    min_y = min(point[1] for point in all_points)
+    max_y = max(point[1] for point in all_points)
     
     width = max_x - min_x
     height = max_y - min_y
     
     return {'width': width, 'height': height, 'min_x': min_x, 'min_y': min_y, 'max_x': max_x, 'max_y': max_y}
 
-def get_svg_element_sizes(svg_path):
-    """Main function to return the bounding box sizes for find_ and replace_ groups."""
-    tree = ET.parse(svg_path)
-    root = tree.getroot()
-    
-    results = {}
-    
-    # Find all groups that start with "find_" or "replace_"
-    for elem in root.iter():
-        elem_id = elem.get('id')
-        if elem_id and (elem_id.startswith('find_') or elem_id.startswith('replace_')):
-            bbox = calculate_group_bbox(root, elem_id)
-            if bbox:
-                results[elem_id] = {
-                    'width': round(bbox['width'], 3),
-                    'height': round(bbox['height'], 3)
-                }
-    
-    return results
-
 # Test the function with the lookup.svg file
-if __name__ == "__main__":
-    svg_path = "/workspace/lookup.svg"
-    results = get_svg_element_sizes(svg_path)
-    
-    print("Bounding box sizes for find_ and replace_ groups:")
-    for group_id, size in results.items():
-        print(f"{group_id}: W:{size['width']} H:{size['height']}")
-    
-    # Print expected vs actual for the replace groups mentioned in the problem
-    print("\nComparison with expected measurements:")
-    expected = {
-        'replace_001': {'width': 35.323, 'height': 40.320},
-        'replace_002': {'width': 13.539, 'height': 16.365},
-        'replace_003': {'width': 48.583, 'height': 37.098}
-    }
-    
-    for group_id, exp_size in expected.items():
-        if group_id in results:
-            actual = results[group_id]
-            print(f"{group_id}:")
-            print(f"  Expected: W:{exp_size['width']} H:{exp_size['height']}")
-            print(f"  Actual:   W:{actual['width']} H:{actual['height']}")
-            print(f"  Diff:     W:{abs(exp_size['width'] - actual['width']):.3f} H:{abs(exp_size['height'] - actual['height']):.3f}")
+svg_path = "/workspace/lookup.svg"
+tree = ET.parse(svg_path)
+root = tree.getroot()
+
+# Debug the replace_002 group specifically
+bbox = calculate_group_bbox_debug(root, 'replace_002')
+if bbox:
+    print(f"\nFinal result for replace_002: W:{bbox['width']} H:{bbox['height']}")
