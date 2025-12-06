@@ -1240,77 +1240,68 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             # Get the original transform of the replacement group
             original_transform = replace_group.get('transform', '')
             
-            # For center-to-center alignment, we need to calculate the centers of both groups
-            # Calculate the center of the matched input groups using the improved method
-            matched_center_x, matched_center_y = calculate_group_center_improved(matched_input_groups, input_root)
+            # Calculate the target position (center of matched input groups)
+            target_center_x, target_center_y = calculate_group_center_improved(matched_input_groups, input_root)
             
-            # Calculate the bounding box of the replacement group to get its width and height
-            # We need to calculate this for the replacement copy that will be inserted
-            # Create a temporary group to calculate the replacement's bounding box with transforms
-            import uuid
-            temp_replacement_id = f"temp_replacement_{uuid.uuid4().hex[:8]}"
-            replacement.set('id', temp_replacement_id)
-            input_root.append(replacement)  # Add temporarily to calculate bbox
+            # Calculate the original position of the replacement group in the lookup SVG
+            # We need to determine where the replacement group would be positioned if placed without any transformation
+            lookup_tree = ET.parse(lookup_svg_path)
+            lookup_root = lookup_tree.getroot()
             
-            try:
-                replacement_bbox = calculate_group_bbox(input_root, temp_replacement_id)
-                if replacement_bbox:
-                    replacement_width = replacement_bbox['width']
-                    replacement_height = replacement_bbox['height']
-                    replacement_center_x = (replacement_bbox['min_x'] + replacement_bbox['max_x']) / 2
-                    replacement_center_y = (replacement_bbox['min_y'] + replacement_bbox['max_y']) / 2
-                else:
-                    # Fallback to the old method if bounding box calculation fails
-                    min_x, min_y, max_x, max_y = calculate_group_bounding_box([replacement])
-                    replacement_width = max_x - min_x
-                    replacement_height = max_y - min_y
-                    replacement_center_x, replacement_center_y = calculate_group_center([replacement])
-            finally:
-                # Remove the temporary replacement from root
-                input_root.remove(replacement)
-                # Restore original ID if needed
-                replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
+            # Find the original replacement group in the lookup SVG to get its original position
+            original_lookup_group = None
+            for g in lookup_root.iter('{http://www.w3.org/2000/svg}g'):
+                if g.get('id') == replace_id:
+                    original_lookup_group = g
+                    break
             
-            # To align the centers, we need to position the replacement element such that
-            # its center coincides with the matched group's center
-            # Calculate the translation needed to move the replacement's center to the matched group's center
-            center_offset_x = matched_center_x - replacement_center_x
-            center_offset_y = matched_center_y - replacement_center_y
-            
-            # Create the centering transform
-            centering_transform = f"translate({center_offset_x},{center_offset_y})"
-            
-            # If the original replacement has a matrix transform, we need to handle it differently
-            # because matrix transforms already encode position, rotation, scale, etc.
-            if original_transform and original_transform.strip().startswith('matrix'):
-                # For matrix transforms, we need to decompose and recompose
-                # Extract the translation part from the matrix and adjust it
-                import re
-                matrix_match = re.match(r'matrix\\(([^)]+)\\)', original_transform.strip())
-                if matrix_match:
-                    values = [float(x.strip()) for x in matrix_match.group(1).split(',')]
-                    if len(values) == 6:
-                        a, b, c, d, e, f = values
-                        # e, f are the translation components
-                        # Apply the center offset to the translation
-                        new_e = e + center_offset_x
-                        new_f = f + center_offset_y
-                        combined_transform = f"matrix({a},{b},{c},{d},{new_e},{new_f})"
-                    else:
-                        # If matrix format is wrong, just use the centering transform
-                        combined_transform = centering_transform
-                else:
-                    # If matrix format is wrong, just use the centering transform
-                    combined_transform = centering_transform
-            elif original_transform:
-                # For simple transforms like translate, we can combine them
-                combined_transform = f"{original_transform} {centering_transform}"
+            if original_lookup_group is not None:
+                # Calculate the original position of the replacement group in the lookup SVG
+                original_replacement_center_x, original_replacement_center_y = calculate_group_center_improved([original_lookup_group], lookup_root)
             else:
-                # No original transform, just use centering
-                combined_transform = centering_transform
+                # Fallback: calculate from the copied replacement group
+                original_replacement_center_x, original_replacement_center_y = calculate_group_center_improved([replace_group], lookup_root)
             
-            # Apply the combined transform to the replacement group
-            replacement.set('transform', combined_transform)
+            # For the positioning, we want to find where the original replacement element is located in the lookup SVG
+            # The calculate_group_center_improved function returns the center of the element considering its transforms
+            # So original_replacement_center_x, original_replacement_center_y is the actual position of the element in the lookup SVG
+            original_center_x = original_replacement_center_x
+            original_center_y = original_replacement_center_y
+            
+            # Calculate the translation needed to move the replacement to the target position
+            translation_x = target_center_x - original_center_x
+            translation_y = target_center_y - original_center_y
+            
+            # Create the final transform
+            if original_transform:
+                # Combine the original transform with the positioning transform
+                # For matrix transforms, we need to apply the translation after the original matrix
+                if original_transform.strip().startswith('matrix'):
+                    # Decompose the matrix and apply translation
+                    matrix_match = re.match(r'matrix\(([^)]+)\)', original_transform.strip())
+                    if matrix_match:
+                        values = [float(x.strip()) for x in matrix_match.group(1).split(',')]
+                        if len(values) == 6:
+                            a, b, c, d, e, f = values
+                            # Apply the translation to the existing translation components
+                            final_e = e + translation_x
+                            final_f = f + translation_y
+                            final_transform = f"matrix({a},{b},{c},{d},{final_e},{final_f})"
+                        else:
+                            # If matrix format is wrong, combine with translate
+                            final_transform = f"{original_transform} translate({translation_x},{translation_y})"
+                    else:
+                        # If matrix format is wrong, combine with translate
+                        final_transform = f"{original_transform} translate({translation_x},{translation_y})"
+                else:
+                    # For other transforms, just append the translation
+                    final_transform = f"{original_transform} translate({translation_x},{translation_y})"
+            else:
+                # No original transform, just use the translation
+                final_transform = f"translate({translation_x},{translation_y})"
+            
+            # Apply the final transform to the replacement group
+            replacement.set('transform', final_transform)
             
             # Find the parent of the first matched group to replace the entire sequence in the same location
             parent = None
