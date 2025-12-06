@@ -1280,10 +1280,33 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             # Create the centering transform
             centering_transform = f"translate({center_offset_x},{center_offset_y})"
             
-            # Combine the transforms: first apply the original transform of replacement, then centering
-            if original_transform:
+            # If the original replacement has a matrix transform, we need to handle it differently
+            # because matrix transforms already encode position, rotation, scale, etc.
+            if original_transform and original_transform.strip().startswith('matrix'):
+                # For matrix transforms, we need to decompose and recompose
+                # Extract the translation part from the matrix and adjust it
+                import re
+                matrix_match = re.match(r'matrix\\(([^)]+)\\)', original_transform.strip())
+                if matrix_match:
+                    values = [float(x.strip()) for x in matrix_match.group(1).split(',')]
+                    if len(values) == 6:
+                        a, b, c, d, e, f = values
+                        # e, f are the translation components
+                        # Apply the center offset to the translation
+                        new_e = e + center_offset_x
+                        new_f = f + center_offset_y
+                        combined_transform = f"matrix({a},{b},{c},{d},{new_e},{new_f})"
+                    else:
+                        # If matrix format is wrong, just use the centering transform
+                        combined_transform = centering_transform
+                else:
+                    # If matrix format is wrong, just use the centering transform
+                    combined_transform = centering_transform
+            elif original_transform:
+                # For simple transforms like translate, we can combine them
                 combined_transform = f"{original_transform} {centering_transform}"
             else:
+                # No original transform, just use centering
                 combined_transform = centering_transform
             
             # Apply the combined transform to the replacement group
