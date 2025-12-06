@@ -95,20 +95,64 @@ def get_element_bbox(element):
         y = float(element.get('y', 0))
         width = float(element.get('width', 0))
         height = float(element.get('height', 0))
-        return [(x, y), (x + width, y), (x + width, y + height), (x, y + height)]
+        
+        # Account for stroke width if present
+        stroke_width = element.get('stroke-width')
+        stroke_offset = 0
+        if stroke_width:
+            try:
+                stroke_offset = float(stroke_width) / 2.0
+            except ValueError:
+                stroke_offset = 0
+        
+        return [(x - stroke_offset, y - stroke_offset), 
+                (x + width + stroke_offset, y - stroke_offset), 
+                (x + width + stroke_offset, y + height + stroke_offset), 
+                (x - stroke_offset, y + height + stroke_offset)]
     
     elif element.tag.endswith('}circle'):
         cx = float(element.get('cx', 0))
         cy = float(element.get('cy', 0))
         r = float(element.get('r', 0))
-        return [(cx - r, cy - r), (cx + r, cy - r), (cx + r, cy + r), (cx - r, cy + r)]
+        
+        # Account for stroke width if present
+        stroke_width = element.get('stroke-width')
+        stroke_offset = 0
+        if stroke_width:
+            try:
+                stroke_offset = float(stroke_width) / 2.0
+            except ValueError:
+                stroke_offset = 0
+        
+        # Add stroke offset to radius
+        r_with_stroke = r + stroke_offset
+        return [(cx - r_with_stroke, cy - r_with_stroke), 
+                (cx + r_with_stroke, cy - r_with_stroke), 
+                (cx + r_with_stroke, cy + r_with_stroke), 
+                (cx - r_with_stroke, cy + r_with_stroke)]
     
     elif element.tag.endswith('}ellipse'):
         cx = float(element.get('cx', 0))
         cy = float(element.get('cy', 0))
         rx = float(element.get('rx', 0))
         ry = float(element.get('ry', 0))
-        return [(cx - rx, cy - ry), (cx + rx, cy - ry), (cx + rx, cy + ry), (cx - rx, cy + ry)]
+        
+        # Account for stroke width if present
+        stroke_width = element.get('stroke-width')
+        stroke_offset = 0
+        if stroke_width:
+            try:
+                stroke_offset = float(stroke_width) / 2.0
+            except ValueError:
+                stroke_offset = 0
+        
+        # Add stroke offset to radii
+        rx_with_stroke = rx + stroke_offset
+        ry_with_stroke = ry + stroke_offset
+        return [(cx - rx_with_stroke, cy - ry_with_stroke), 
+                (cx + rx_with_stroke, cy - ry_with_stroke), 
+                (cx + rx_with_stroke, cy + ry_with_stroke), 
+                (cx - rx_with_stroke, cy + ry_with_stroke)]
     
     elif element.tag.endswith('}polygon') or element.tag.endswith('}polyline'):
         points_str = element.get('points', '')
@@ -132,7 +176,23 @@ def get_element_bbox(element):
         if len(path) > 0:
             # Get the bounding box of the path
             xmin, xmax, ymin, ymax = path.bbox()
-            # Return the 4 corners of the bounding box
+            
+            # Account for stroke width if present
+            stroke_width = element.get('stroke-width')
+            if stroke_width:
+                try:
+                    stroke_width = float(stroke_width)
+                    # Add half the stroke width to each side
+                    stroke_offset = stroke_width / 2.0
+                    xmin -= stroke_offset
+                    xmax += stroke_offset
+                    ymin -= stroke_offset
+                    ymax += stroke_offset
+                except ValueError:
+                    # If stroke-width is not a number (e.g., "auto"), ignore it
+                    pass
+            
+            # Return the 4 corners of the bounding box (including stroke if applicable)
             return [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
         else:
             return []
@@ -142,7 +202,22 @@ def get_element_bbox(element):
         y1 = float(element.get('y1', 0))
         x2 = float(element.get('x2', 0))
         y2 = float(element.get('y2', 0))
-        return [(x1, y1), (x2, y2)]
+        
+        # Account for stroke width if present
+        stroke_width = element.get('stroke-width')
+        stroke_offset = 0
+        if stroke_width:
+            try:
+                stroke_offset = float(stroke_width) / 2.0
+            except ValueError:
+                stroke_offset = 0
+        
+        # Return bounding box that includes stroke width
+        min_x = min(x1, x2) - stroke_offset
+        max_x = max(x1, x2) + stroke_offset
+        min_y = min(y1, y2) - stroke_offset
+        max_y = max(y1, y2) + stroke_offset
+        return [(min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)]
     
     else:
         # For groups and other elements, we'll return None and handle children separately
@@ -160,58 +235,43 @@ def calculate_group_bbox(svg_root, group_id):
     if target_group is None:
         return None
     
-    # Collect all points from the group's content WITH their individual transforms applied but WITHOUT the group's transform
-    raw_points = []
+    # Collect all points from the group's content WITH ALL TRANSFORMS applied
+    all_points = []
     
-    def collect_raw_points(elem):
-        """Recursively collect all raw points from elements within the group."""
-        # Get element's own transform (excluding the group's transform)
+    def collect_points_with_transforms(elem, accumulated_matrix):
+        """Recursively collect all points from elements within the group with accumulated transforms."""
+        # Get element's own transform
         elem_transform = elem.get('transform')
         elem_matrix = parse_transform(elem_transform) if elem_transform else [1, 0, 0, 1, 0, 0]
+        
+        # Accumulate the current element's transform
+        current_matrix = multiply_matrices(accumulated_matrix, elem_matrix)
         
         # Get the element's bounding box points
         elem_bbox = get_element_bbox(elem)
         
         if elem_bbox is not None:
-            # Transform each point by the element's matrix only (not the group's)
+            # Transform each point by the accumulated matrix (includes all parent transforms)
             for point in elem_bbox:
-                transformed_point = apply_transform_to_point(point, elem_matrix)
-                raw_points.append(transformed_point)
+                transformed_point = apply_transform_to_point(point, current_matrix)
+                all_points.append(transformed_point)
         
-        # Recursively process child elements
+        # Recursively process child elements with the accumulated matrix
         for child in elem:
-            collect_raw_points(child)
+            collect_points_with_transforms(child, current_matrix)
     
-    collect_raw_points(target_group)
+    # Start with identity matrix for the target group
+    identity_matrix = [1, 0, 0, 1, 0, 0]
+    collect_points_with_transforms(target_group, identity_matrix)
     
-    if not raw_points:
+    if not all_points:
         return None
     
-    # Calculate the raw bounding box (before applying the group's transform)
-    min_x_raw = min(point[0] for point in raw_points)
-    max_x_raw = max(point[0] for point in raw_points)
-    min_y_raw = min(point[1] for point in raw_points)
-    max_y_raw = max(point[1] for point in raw_points)
-    
-    # Get the group's transform
-    group_transform = target_group.get('transform')
-    group_matrix = parse_transform(group_transform) if group_transform else [1, 0, 0, 1, 0, 0]
-    
-    # Apply the group's transform to the 4 corners of the raw bounding box
-    corners = [
-        (min_x_raw, min_y_raw),
-        (max_x_raw, min_y_raw), 
-        (max_x_raw, max_y_raw),
-        (min_x_raw, max_y_raw)
-    ]
-    
-    transformed_corners = [apply_transform_to_point(corner, group_matrix) for corner in corners]
-    
-    # Calculate the final bounding box from the transformed corners
-    min_x = min(point[0] for point in transformed_corners)
-    max_x = max(point[0] for point in transformed_corners)
-    min_y = min(point[1] for point in transformed_corners)
-    max_y = max(point[1] for point in transformed_corners)
+    # Calculate the final bounding box from all transformed points
+    min_x = min(point[0] for point in all_points)
+    max_x = max(point[0] for point in all_points)
+    min_y = min(point[1] for point in all_points)
+    max_y = max(point[1] for point in all_points)
     
     width = max_x - min_x
     height = max_y - min_y
