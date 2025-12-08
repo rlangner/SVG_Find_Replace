@@ -963,6 +963,8 @@ def create_shape_signature(path_contents):
     This helps match paths that have different coordinate representations but same structure.
     """
     signature = {}
+    ordered_elements = []  # Keep track of the order of elements
+    
     for content in path_contents:
         # Count different element types
         if 'path' in content:
@@ -995,6 +997,12 @@ def create_shape_signature(path_contents):
         
         attr_key = f"{key}_{stroke}_{fill}"
         signature[attr_key] = signature.get(attr_key, 0) + 1
+        
+        # Add to ordered elements to maintain sequence
+        ordered_elements.append(attr_key)
+    
+    # Add ordered sequence to signature to distinguish different arrangements
+    signature['ordered_sequence'] = tuple(ordered_elements)
     
     return signature
 

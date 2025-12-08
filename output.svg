@@ -13507,7 +13507,10 @@
 <svg:g clip-path="url(#clipId0)" fill="none" stroke="rgb(45,45,45)" stroke-width="0.75">
 <svg:polyline points="3311.8,4287.27 3638.68,4287.27 3638.68,3975.28 3158.68,3975.28 3158.68,4181.78 3311.8,4181.78 3311.8,4287.27 " stroke-dasharray="9.375003,3.750001" />
 </svg:g>
-<svg:g id="replace_004_4" ns1:id="AUDIO DESK" transform="matrix(3.3383319,0.0,0.0,3.3383319,1952.2826655091599,963.0120773074432)" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10">
+<svg:g clip-path="url(#clipId0)" fill="none" stroke="rgb(255,0,0)" stroke-width="0.75">
+<svg:polyline points="3155.68,4214.24 3251.68,4214.24 3251.68,4454.24 3155.68,4454.24 3155.68,4214.24 " />
+</svg:g>
+<svg:g id="replace_004_4" ns1:id="AUDIO DESK" transform="matrix(3.3383319,0.0,0.0,3.3383319,2015.2826655091599,888.0120773074432)" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10">
     <svg:g id="AUDIO-DESK1" ns1:id="AUDIO DESK" transform="translate(96.2026,309.885)">
       <svg:rect x="281.47" y="691.37903" width="12.342" height="17.18" style="fill:#b7b1ac" id="rect26337" />
     </svg:g>
@@ -14941,10 +14944,7 @@
       </svg:g>
     </svg:g>
   </svg:g>
-  <svg:g clip-path="url(#clipId0)" fill="none" stroke="rgb(223,255,127)" stroke-width="0.75">
-<svg:polyline points="3281.68,4274.24 3311.68,4274.24 3311.68,4244.24 3281.68,4244.24 3281.68,4274.24 " />
-</svg:g>
-<svg:g clip-path="url(#clipId0)" fill="rgb(223,255,127)" stroke="rgb(223,255,127)" stroke-width="0.05">
+  <svg:g clip-path="url(#clipId0)" fill="rgb(223,255,127)" stroke="rgb(223,255,127)" stroke-width="0.05">
 <svg:text transform="matrix(8.4375 0 -0 9.375 3284.26 4263.84)" font-family="Arial,'sans-serif'" font-size="1.397">PDU</svg:text>
 </svg:g>
 <svg:g clip-path="url(#clipId0)" fill="none" stroke="rgb(255,0,0)" stroke-width="0.75">
