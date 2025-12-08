@@ -306,8 +306,8 @@ def normalize_path_content(path_element: Element) -> str:
     content = re.sub(r'clipId\\d+\\.\\d*-\\d+', 'clipId', content)
     content = re.sub(r'clipId\\d+\\.\\d*', 'clipId', content)
     
-    # Normalize color formats: convert rgb(r,g,b) to hex or hex to rgb for consistency
-    def normalize_color(match):
+    # Normalize color formats: convert both rgb(r,g,b) and hex to rgb for consistency
+    def normalize_color_to_rgb(match):
         full_match = match.group(0)
         if full_match.startswith('rgb'):
             # Parse rgb(r,g,b) format
@@ -315,7 +315,7 @@ def normalize_path_content(path_element: Element) -> str:
             rgb_match = re.search(r'rgb\\((\\d+),(\\d+),(\\d+)\\)', full_match)
             if rgb_match:
                 r, g, b = map(int, rgb_match.groups())
-                return f"#{r:02x}{g:02x}{b:02x}".upper()
+                return f"rgb({r},{g},{b})"
         elif full_match.startswith('#'):
             # Convert hex to rgb format for consistency
             hex_color = full_match[1:]
@@ -332,8 +332,8 @@ def normalize_path_content(path_element: Element) -> str:
         return full_match
     
     # Find and replace rgb/hex colors with a consistent format (rgb)
-    content = re.sub(r'rgb\\(\\d+,\\d+,\\d+\\)', normalize_color, content)
-    content = re.sub(r'#[0-9a-fA-F]{3,6}', normalize_color, content)
+    content = re.sub(r'rgb\\(\\d+,\\d+,\\d+\\)', normalize_color_to_rgb, content)
+    content = re.sub(r'#[0-9a-fA-F]{3,6}', normalize_color_to_rgb, content)
     
     # Extract path coordinates and normalize them to canonical representation
     def extract_and_sort_path_coords(path_d):
@@ -633,8 +633,8 @@ def normalize_svg_content(element: Element) -> str:
     content = re.sub(r'clipId\d+\.\d*-\d+', 'clipId', content)
     content = re.sub(r'clipId\d+\.\d*', 'clipId', content)
     
-    # Normalize color formats: convert rgb(r,g,b) to hex or hex to rgb for consistency
-    def normalize_color(match):
+    # Normalize color formats: convert both rgb(r,g,b) and hex to rgb for consistency
+    def normalize_color_to_rgb(match):
         full_match = match.group(0)
         if full_match.startswith('rgb'):
             # Parse rgb(r,g,b) format
@@ -642,11 +642,25 @@ def normalize_svg_content(element: Element) -> str:
             rgb_match = re.search(r'rgb\((\d+),(\d+),(\d+)\)', full_match)
             if rgb_match:
                 r, g, b = map(int, rgb_match.groups())
-                return f"#{r:02x}{g:02x}{b:02x}".upper()
+                return f"rgb({r},{g},{b})"
+        elif full_match.startswith('#'):
+            # Convert hex to rgb format for consistency
+            hex_color = full_match[1:]
+            if len(hex_color) == 3:
+                hex_color = ''.join([c*2 for c in hex_color])  # Expand shorthand
+            if len(hex_color) == 6:
+                try:
+                    r = int(hex_color[0:2], 16)
+                    g = int(hex_color[2:4], 16)
+                    b = int(hex_color[4:6], 16)
+                    return f"rgb({r},{g},{b})"
+                except ValueError:
+                    pass
         return full_match
     
-    # Find and replace rgb colors with hex colors
-    content = re.sub(r'rgb\(\d+,\d+,\d+\)', normalize_color, content)
+    # Find and replace rgb/hex colors with a consistent format (rgb)
+    content = re.sub(r'rgb\(\d+,\d+,\d+\)', normalize_color_to_rgb, content)
+    content = re.sub(r'#[0-9a-fA-F]{3,6}', normalize_color_to_rgb, content)
     
     # Extract path coordinates and normalize them to canonical representation
     def extract_and_sort_path_coords(path_d):

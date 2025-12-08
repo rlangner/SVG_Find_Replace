@@ -1,8 +1,5 @@
 ```
-# Compiled and build artifacts
+# Compiled Python files
 *.pyc
 __pycache__/
-
-# Output files
-output.svg
 ```
