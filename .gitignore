@@ -1,4 +1,10 @@
 ```
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Generated files
+output.svg
 ```

@@ -1089,19 +1089,32 @@ def groups_match_structure(group1: Element, group2: Element) -> bool:
     # Check for text content match if both have text
     if sig1['has_text_elements'] and sig2['has_text_elements']:
         if set(sig1['text_content']) != set(sig2['text_content']):
-            # Allow for partial text matching in some cases
-            pass
+            return False  # Text content must match exactly for groups to be considered the same
+    elif sig1['has_text_elements'] or sig2['has_text_elements']:
+        # One has text and the other doesn't
+        return False
     
-    # Check color compatibility
-    if sig1['fill_colors'] and sig2['fill_colors']:
-        # Allow partial color matching
-        if len(sig1['fill_colors'] & sig2['fill_colors']) == 0:
-            return False
-    
-    if sig1['stroke_colors'] and sig2['stroke_colors']:
-        # Allow partial color matching
-        if len(sig1['stroke_colors'] & sig2['stroke_colors']) == 0:
-            return False
+    # Check color compatibility - for text elements with labels like AUDIO/VIDEO, require exact color match
+    if sig1['has_text_elements'] and sig2['has_text_elements']:
+        # If both have text elements, require exact color matching for text elements
+        if sig1['fill_colors'] and sig2['fill_colors']:
+            if sig1['fill_colors'] != sig2['fill_colors']:
+                return False
+        
+        if sig1['stroke_colors'] and sig2['stroke_colors']:
+            if sig1['stroke_colors'] != sig2['stroke_colors']:
+                return False
+    else:
+        # For non-text elements, allow partial color matching
+        if sig1['fill_colors'] and sig2['fill_colors']:
+            # Allow partial color matching
+            if len(sig1['fill_colors'] & sig2['fill_colors']) == 0:
+                return False
+        
+        if sig1['stroke_colors'] and sig2['stroke_colors']:
+            # Allow partial color matching
+            if len(sig1['stroke_colors'] & sig2['stroke_colors']) == 0:
+                return False
     
     return True
 
