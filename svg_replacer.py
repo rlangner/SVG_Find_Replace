@@ -971,6 +971,14 @@ def create_shape_signature(path_contents):
             key = 'polygon'
         elif 'polyline' in content:
             key = 'polyline'
+        elif 'text' in content:
+            key = 'text'
+            # Extract text content for signature
+            text_match = re.search(r'>([^<]*)<', content)
+            if text_match:
+                text_content = text_match.group(1).strip()
+                if text_content:
+                    signature[f"text_content_{text_content}"] = signature.get(f"text_content_{text_content}", 0) + 1
         else:
             key = 'other'
         
