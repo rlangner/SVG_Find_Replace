@@ -300,7 +300,7 @@ def get_svg_element_sizes(svg_path):
 
 # Test the function with the lookup.svg file
 if __name__ == "__main__":
-    svg_path = "/workspace/lookup.svg"
+    svg_path = "lookup.svg"
     results = get_svg_element_sizes(svg_path)
     
     print("Bounding box sizes for find_ and replace_ groups:")
