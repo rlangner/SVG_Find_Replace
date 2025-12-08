@@ -1,0 +1,32 @@
+<g xmlns="http://www.w3.org/2000/svg" id="find_004" transform="rotate(-90,204.75164,4425.122)">
+    <g clip-path="url(#clipId0-35)" fill="#ffffff" stroke="#ffffff" stroke-width="0.75" id="g170237">
+<polygon points="4613.58,4224.27 4613.58,4254.27 4583.58,4254.27 4583.58,4224.27 " id="polygon170235"/>
+
+</g>
+    <g clip-path="url(#clipId0-35)" fill="none" stroke="#260000" stroke-width="0.75" id="g170247">
+<polyline points="4583.58,4224.27 4613.58,4224.27 " id="polyline170239"/>
+
+<polyline points="4613.58,4224.27 4613.58,4254.27 " id="polyline170241"/>
+
+<polyline points="4613.58,4254.27 4583.58,4254.27 " id="polyline170243"/>
+
+<polyline points="4583.58,4254.27 4583.58,4224.27 " id="polyline170245"/>
+
+</g>
+    <g clip-path="url(#clipId0-35)" fill="#00261c" stroke="#00261c" stroke-width="3" id="g170253">
+<path d="m 4583.58,4224.27 h 30 l -30,30 z" id="path170249"/>
+
+<path d="m 4583.58,4254.27 30,-30 v 30 z" id="path170251"/>
+
+</g>
+    <g clip-path="url(#clipId0-35)" fill="none" stroke="#7fffff" stroke-width="0.75" id="g170257">
+<polyline points="4583.58,4224.27 4583.58,4254.27 4613.58,4254.27 4613.58,4224.27 4583.58,4224.27 " id="polyline170255"/>
+
+</g>
+    <g clip-path="url(#clipId0-35)" fill="#7fffff" stroke="#7fffff" stroke-width="0.05" id="g170263">
+<text transform="matrix(0,8.4375,-9.375,0,4593.9,4228.8)" font-family="Arial, sans-serif" font-size="1.397px" id="text170259">MIX</text>
+
+<text transform="matrix(0,8.4375,-9.375,0,4620.11,4220.61)" font-family="Arial, sans-serif" font-size="1.397px" id="text170261">AUDIO</text>
+
+</g>
+  </g>
