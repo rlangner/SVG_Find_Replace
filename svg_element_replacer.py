@@ -337,24 +337,29 @@ def calculate_group_rotation(groups: List[Element], lookup_root: Element, find_i
         # If original find group not found, return 0
         return 0.0
     
-    # Calculate rotation of the original find group
-    original_rotation = calculate_element_orientation(original_find_group)
+    # Calculate rotation of the original find group from its transform attribute
+    original_transform = original_find_group.get('transform', '')
+    original_rotation_from_transform = get_transform_rotation_angle(original_transform)
     
-    # Calculate rotation of the matched input groups
-    # For simplicity, we'll use the first group's transform as representative
-    matched_rotation = calculate_element_orientation(groups[0])
+    # Calculate rotation of the matched input groups from their transform attribute
+    # For the first group in the sequence
+    matched_transform = groups[0].get('transform', '')
+    matched_rotation_from_transform = get_transform_rotation_angle(matched_transform)
     
-    # Calculate the difference in rotation
-    rotation_difference = matched_rotation - original_rotation
+    # Calculate the difference from explicit transforms
+    rotation_difference_from_transforms = matched_rotation_from_transform - original_rotation_from_transform
     
-    # Normalize the angle to be within -180 to 180 degrees
-    import math
-    while rotation_difference > 180:
-        rotation_difference -= 360
-    while rotation_difference <= -180:
-        rotation_difference += 360
+    # Only return rotation difference if there's a significant explicit transform difference
+    # Round to nearest 5 degrees to avoid tiny floating point differences
+    rotation_difference = round(rotation_difference_from_transforms / 5) * 5
     
-    return rotation_difference
+    # Only return a meaningful rotation if the explicit transform difference is significantly different from 0
+    # (at least 5 degrees to account for the rounding)
+    if abs(rotation_difference) >= 5.0:
+        return rotation_difference
+    
+    # If no significant explicit transform rotation difference found, return 0
+    return 0.0
 
 
 def calculate_original_transform(groups: List[Element], input_root: Element) -> str:
