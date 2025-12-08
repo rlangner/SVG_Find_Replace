@@ -1,0 +1,19 @@
+<g xmlns="http://www.w3.org/2000/svg" clip-path="url(#clipId0)" fill="rgb(255,255,255)" stroke="rgb(255,255,255)" stroke-width="0.75">
+<polygon points="5225.51,4143.18 5225.51,4113.18 5255.51,4113.18 5255.51,4143.18 "/>
+</g>
+<g xmlns="http://www.w3.org/2000/svg" clip-path="url(#clipId0)" fill="none" stroke="rgb(38,0,0)" stroke-width="0.75">
+<polyline points="5225.51,4143.18 5225.51,4113.18 "/>
+<polyline points="5225.51,4113.18 5255.51,4113.18 "/>
+<polyline points="5255.51,4113.18 5255.51,4143.18 "/>
+<polyline points="5255.51,4143.18 5225.51,4143.18 "/>
+</g>
+<g xmlns="http://www.w3.org/2000/svg" clip-path="url(#clipId0)" fill="rgb(0,38,0)" stroke="rgb(0,38,0)" stroke-width="3">
+<path d="M5225.51,4143.18 5225.51,4113.18 5255.51,4143.18 z"/>
+<path d="M5255.51,4143.18 5225.51,4113.18 5255.51,4113.18 z"/>
+</g>
+<g xmlns="http://www.w3.org/2000/svg" clip-path="url(#clipId0)" fill="none" stroke="rgb(223,255,127)" stroke-width="0.75">
+<polyline points="5225.51,4143.18 5255.51,4143.18 5255.51,4113.18 5225.51,4113.18 5225.51,4143.18 "/>
+</g>
+<g xmlns="http://www.w3.org/2000/svg" clip-path="url(#clipId0)" fill="rgb(223,255,127)" stroke="rgb(223,255,127)" stroke-width="0.05">
+<text transform="matrix(8.4375 0 -0 9.375 5228.08 4132.79)" font-family="Arial,'sans-serif'" font-size="1.397">PDU</text>
+</g>
