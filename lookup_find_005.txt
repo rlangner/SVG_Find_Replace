@@ -1,0 +1,21 @@
+<g xmlns="http://www.w3.org/2000/svg" id="find_005" transform="translate(-3278.0587,-4240.6187)" style="display:inline">
+    <g clip-path="url(#clipId0-367)" fill="#ffffff" stroke="#ffffff" stroke-width="0.75" id="g40889">
+      <polygon points="3281.68,4274.24 3281.68,4244.24 3311.68,4244.24 3311.68,4274.24 " id="polygon40887"/>
+    </g>
+    <g clip-path="url(#clipId0-367)" fill="none" stroke="#260000" stroke-width="0.75" id="g40899">
+      <polyline points="3281.68,4274.24 3281.68,4244.24 " id="polyline40891"/>
+      <polyline points="3281.68,4244.24 3311.68,4244.24 " id="polyline40893"/>
+      <polyline points="3311.68,4244.24 3311.68,4274.24 " id="polyline40895"/>
+      <polyline points="3311.68,4274.24 3281.68,4274.24 " id="polyline40897"/>
+    </g>
+    <g clip-path="url(#clipId0-367)" fill="#002600" stroke="#002600" stroke-width="3" id="g40905">
+      <path d="m 3281.68,4274.24 v -30 l 30,30 z" id="path40901"/>
+      <path d="m 3311.68,4274.24 -30,-30 h 30 z" id="path40903"/>
+    </g>
+    <g clip-path="url(#clipId0-367)" fill="none" stroke="#dfff7f" stroke-width="0.75" id="g40909">
+      <polyline points="3281.68,4274.24 3311.68,4274.24 3311.68,4244.24 3281.68,4244.24 3281.68,4274.24 " id="polyline40907"/>
+    </g>
+    <g clip-path="url(#clipId0-367)" fill="#dfff7f" stroke="#dfff7f" stroke-width="0.05" id="g40913">
+      <text transform="matrix(8.4375,0,0,9.375,3284.26,4263.84)" font-family="Arial, sans-serif" font-size="1.397px" id="text40911">PDU</text>
+    </g>
+  </g>
