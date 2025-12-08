@@ -924,150 +924,63 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
             normalized_candidate_paths = [normalize_path_content(path_elem) for path_elem in candidate_path_elements]
             normalized_candidate_paths_set = set(normalized_candidate_paths)
             
-            # For find_005, use only the specific matching logic to avoid duplicates
-            if find_id == 'find_005':
-                # Skip the general matching logic for find_005 and go directly to specific checks
-                continue
-            else:
-                # Check if the candidate groups have the same path elements as the find group
-                if normalized_find_paths_set == normalized_candidate_paths_set:
-                    print(f"Found matching sequence of {len(candidate_groups)} groups with same path elements as {find_id}")
-                    matching_input_groups.append(candidate_groups)
-                elif normalized_find_paths_set.issubset(normalized_candidate_paths_set):
-                    # If the candidate groups contain all the path elements from the find group (and maybe more)
-                    print(f"Found matching sequence containing find group path elements: {find_id}")
-                    matching_input_groups.append(candidate_groups)
-                else:
-                    # Additional check: see if the shapes are similar by comparing structure more loosely
-                    # This is especially important when dealing with relative vs absolute coordinates
-                    # For other patterns, keep the original logic
-                    find_shape_signature = create_shape_signature(normalized_find_paths)
-                    candidate_shape_signature = create_shape_signature(normalized_candidate_paths)
-                    
-                    if find_shape_signature == candidate_shape_signature:
-                        print(f"Found matching sequence based on shape signature for {find_id}")
-                        matching_input_groups.append(candidate_groups)
-
-        print(f"Found {len(matching_input_groups)} candidate group sequences for {find_id}")
-        
-        # Special handling for find_005 - process it separately with specific checks
-        if find_id == 'find_005':
-            matching_input_groups = []  # Clear the list to start fresh for find_005
-            # Now apply the specific find_005 matching logic
-            for i in range(len(input_groups)):
-                # Check if we have enough remaining groups to match the find pattern
-                if i + len(find_subgroups) > len(input_groups):
-                    continue
-                    
-                # Get a sequence of input groups to compare
-                candidate_groups = input_groups[i:i+len(find_subgroups)]
-                
-                # Extract path elements from these candidate groups
-                candidate_path_elements = []
-                for group in candidate_groups:
-                    candidate_path_elements.extend(extract_path_elements(group))
-                
-                if not candidate_path_elements:
-                    continue
-                    
-                # Normalize path elements in these candidate groups
-                normalized_candidate_paths = [normalize_path_content(path_elem) for path_elem in candidate_path_elements]
-                normalized_candidate_paths_set = set(normalized_candidate_paths)
-                
-                # For find_005, check for a more specific pattern - looking for PDU text and specific structure
-                find_shape_signature = create_shape_signature(normalized_find_paths)
-                candidate_shape_signature = create_shape_signature(normalized_candidate_paths)
-                
-                # For find_005, require exact signature match AND element count AND check for specific content
-                if (find_shape_signature == candidate_shape_signature and 
-                    len(normalized_find_paths) == len(normalized_candidate_paths)):
-                    # Check if the groups contain text elements with "PDU" (case-insensitive)
-                    has_pdu_text = False
-                    has_white_fill = False
-                    has_black_stroke = False
-                    has_green_stroke = False
-                    has_green_fill = False
-                    has_correct_text_transform = False
-                    has_correct_polygon_points = False
-                    has_specific_coordinates = False
-                    
-                    for group in candidate_groups:
-                        for elem in group.iter():
-                            # Check for text content
-                            if elem.tag.endswith('text'):
-                                text_content = elem.text or ""
-                                if "PDU" in text_content.upper():
-                                    has_pdu_text = True
-                                
-                                # Check for the specific transform value that's characteristic of find_005
-                                transform = elem.get('transform', '')
-                                if '8.4375' in transform and '9.375' in transform and '3284.26' in transform and '4263.84' in transform:
-                                    has_correct_text_transform = True
-                            
-                            # Check for fill and stroke attributes
-                            fill = elem.get('fill', '')
-                            stroke = elem.get('stroke', '')
-                            
-                            # Normalize colors for comparison
-                            fill = normalize_color(fill)
-                            stroke = normalize_color(stroke)
-                            
-                            # Check for white fill (for the background rectangle)
-                            if fill and ('255,255,255' in fill or fill == 'rgb(255,255,255)' or fill == '#ffffff' or fill == 'white'):
-                                has_white_fill = True
-                            # Check for black stroke (for the outline)
-                            if stroke and ('0,0,0' in stroke or '38,0,0' in stroke or stroke == 'rgb(38,0,0)' or '000000' in stroke or '260000' in stroke):
-                                has_black_stroke = True
-                            # Check for green stroke (for the outline)
-                            if stroke and ('223,255,127' in stroke or stroke == 'rgb(223,255,127)' or 'dfff7f' in stroke or 'dfff7f' in stroke.lower()):
-                                has_green_stroke = True
-                            # Check for green fill (for the text)
-                            if fill and ('223,255,127' in fill or fill == 'rgb(223,255,127)' or 'dfff7f' in fill or 'dfff7f' in fill.lower()):
-                                has_green_fill = True
-                            
-                            # Check for specific polygon points that are characteristic of find_005
-                            points = elem.get('points', '')
-                            if '3281.68,4274.24 3281.68,4244.24 3311.68,4244.24 3311.68,4274.24' in points:
-                                has_correct_polygon_points = True
-                            
-                            # Check for specific coordinates in path/polygon/polyline elements
-                            if elem.tag.endswith('polygon') or elem.tag.endswith('polyline') or elem.tag.endswith('path'):
-                                # Check points or d attributes for the specific coordinates
-                                if elem.tag.endswith('polygon') or elem.tag.endswith('polyline'):
-                                    points = elem.get('points', '')
-                                    if '3281.68' in points and '4274.24' in points and '4244.24' in points and '3311.68' in points:
-                                        has_specific_coordinates = True
-                                elif elem.tag.endswith('path'):
-                                    path_d = elem.get('d', '')
-                                    if '3281.68' in path_d and '4274.24' in path_d and '4244.24' in path_d and '3311.68' in path_d:
-                                        has_specific_coordinates = True
-                    
-                    # For find_005, we expect to find all these elements
-                    if (has_pdu_text and has_white_fill and has_black_stroke and 
-                        has_green_stroke and has_green_fill and has_correct_text_transform and 
-                        has_correct_polygon_points and has_specific_coordinates):
-                        print(f"Found matching sequence based on specific find_005 characteristics for {find_id}")
-                        matching_input_groups.append(candidate_groups)
-        else:
-            # For other patterns, use the general matching logic
             # Check if the candidate groups have the same path elements as the find group
             if normalized_find_paths_set == normalized_candidate_paths_set:
-                print(f"Found matching sequence of {len(candidate_groups)} groups with same path elements as {find_id}")
-                matching_input_groups.append(candidate_groups)
+                # Additional check: verify that the subgroup structure matches
+                # Compare each subgroup in the find group with the corresponding candidate group
+                structure_matches = True
+                for j, find_subgroup in enumerate(find_subgroups):
+                    if j < len(candidate_groups):
+                        candidate_group = candidate_groups[j]
+                        if not groups_match_structure(find_subgroup, candidate_group):
+                            structure_matches = False
+                            break
+                    else:
+                        structure_matches = False
+                        break
+                
+                if structure_matches:
+                    print(f"Found matching sequence of {len(candidate_groups)} groups with same path elements and structure as {find_id}")
+                    matching_input_groups.append(candidate_groups)
             elif normalized_find_paths_set.issubset(normalized_candidate_paths_set):
                 # If the candidate groups contain all the path elements from the find group (and maybe more)
-                print(f"Found matching sequence containing find group path elements: {find_id}")
-                matching_input_groups.append(candidate_groups)
+                # Check if the subgroup structure matches
+                structure_matches = True
+                for j, find_subgroup in enumerate(find_subgroups):
+                    if j < len(candidate_groups):
+                        candidate_group = candidate_groups[j]
+                        if not groups_match_structure(find_subgroup, candidate_group):
+                            structure_matches = False
+                            break
+                    else:
+                        structure_matches = False
+                        break
+                
+                if structure_matches:
+                    print(f"Found matching sequence containing find group path elements: {find_id}")
+                    matching_input_groups.append(candidate_groups)
             else:
                 # Additional check: see if the shapes are similar by comparing structure more loosely
                 # This is especially important when dealing with relative vs absolute coordinates
-                # For other patterns, keep the original logic
                 find_shape_signature = create_shape_signature(normalized_find_paths)
                 candidate_shape_signature = create_shape_signature(normalized_candidate_paths)
                 
                 if find_shape_signature == candidate_shape_signature:
-                    print(f"Found matching sequence based on shape signature for {find_id}")
-                    matching_input_groups.append(candidate_groups)
+                    # Additional check: verify that the subgroup structure matches
+                    structure_matches = True
+                    for j, find_subgroup in enumerate(find_subgroups):
+                        if j < len(candidate_groups):
+                            candidate_group = candidate_groups[j]
+                            if not groups_match_structure(find_subgroup, candidate_group):
+                                structure_matches = False
+                                break
+                        else:
+                            structure_matches = False
+                            break
+                    
+                    if structure_matches:
+                        print(f"Found matching sequence based on shape signature for {find_id}")
+                        matching_input_groups.append(candidate_groups)
 
         # Add the matching groups to results
         for input_group_sequence in matching_input_groups:
@@ -1076,6 +989,121 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
             matches.append((input_group_sequence, find_id))
 
     return matches
+
+
+def create_detailed_shape_signature(group: Element) -> dict:
+    """
+    Create a detailed signature of a group by examining its structure and content.
+    This helps distinguish between groups that might have similar path elements
+    but different overall structure or content.
+    """
+    signature = {
+        'element_count': 0,
+        'element_types': [],
+        'text_content': [],
+        'fill_colors': set(),
+        'stroke_colors': set(),
+        'transform_info': set(),
+        'subgroup_count': 0,
+        'has_text_elements': False,
+        'has_path_elements': False,
+        'has_polygon_elements': False,
+        'has_polyline_elements': False
+    }
+    
+    for child in group:
+        signature['element_count'] += 1
+        
+        # Track element types
+        tag_name = child.tag.split('}')[-1] if '}' in child.tag else child.tag  # Remove namespace
+        signature['element_types'].append(tag_name)
+        
+        # Process different element types
+        if tag_name == 'text':
+            signature['has_text_elements'] = True
+            # Extract text content
+            if child.text:
+                signature['text_content'].append(child.text.strip().lower())
+            # Check for specific text patterns
+            if child.text and 'PDU' in child.text.upper():
+                signature['text_content'].append('PDU')
+        elif tag_name == 'path':
+            signature['has_path_elements'] = True
+        elif tag_name == 'polygon':
+            signature['has_polygon_elements'] = True
+        elif tag_name == 'polyline':
+            signature['has_polyline_elements'] = True
+        elif tag_name == 'g':
+            signature['subgroup_count'] += 1
+        
+        # Collect color information
+        fill = child.get('fill')
+        stroke = child.get('stroke')
+        transform = child.get('transform')
+        
+        if fill:
+            normalized_fill = normalize_color(fill)
+            if normalized_fill:
+                signature['fill_colors'].add(normalized_fill)
+        
+        if stroke:
+            normalized_stroke = normalize_color(stroke)
+            if normalized_stroke:
+                signature['stroke_colors'].add(normalized_stroke)
+        
+        if transform:
+            signature['transform_info'].add(transform)
+    
+    # Sort for consistency
+    signature['element_types'].sort()
+    signature['text_content'].sort()
+    
+    return signature
+
+
+def groups_match_structure(group1: Element, group2: Element) -> bool:
+    """
+    Check if two groups have matching structure by comparing detailed signatures.
+    This provides more specific matching than just path elements.
+    """
+    sig1 = create_detailed_shape_signature(group1)
+    sig2 = create_detailed_shape_signature(group2)
+    
+    # Compare key structural elements
+    if sig1['element_count'] != sig2['element_count']:
+        return False
+    
+    if sig1['element_types'] != sig2['element_types']:
+        return False
+    
+    # Check if both have same types of elements
+    if sig1['has_text_elements'] != sig2['has_text_elements']:
+        return False
+    if sig1['has_path_elements'] != sig2['has_path_elements']:
+        return False
+    if sig1['has_polygon_elements'] != sig2['has_polygon_elements']:
+        return False
+    if sig1['has_polyline_elements'] != sig2['has_polyline_elements']:
+        return False
+    
+    # Check for text content match if both have text
+    if sig1['has_text_elements'] and sig2['has_text_elements']:
+        if set(sig1['text_content']) != set(sig2['text_content']):
+            # Allow for partial text matching in some cases
+            pass
+    
+    # Check color compatibility
+    if sig1['fill_colors'] and sig2['fill_colors']:
+        # Allow partial color matching
+        if len(sig1['fill_colors'] & sig2['fill_colors']) == 0:
+            return False
+    
+    if sig1['stroke_colors'] and sig2['stroke_colors']:
+        # Allow partial color matching
+        if len(sig1['stroke_colors'] & sig2['stroke_colors']) == 0:
+            return False
+    
+    return True
 
 
 def create_shape_signature(path_contents):
