@@ -150,9 +150,17 @@ def normalize_path_data(path_d):
         cmd = segments[i]
         if cmd in 'Mm':
             i += 1
-            x = float(segments[i])
+            try:
+                x = float(segments[i])
+            except (ValueError, IndexError):
+                i += 1
+                continue
             i += 1
-            y = float(segments[i])
+            try:
+                y = float(segments[i])
+            except (ValueError, IndexError):
+                i += 1
+                continue
             if cmd.islower():
                 x += current_x
                 y += current_y
@@ -162,9 +170,17 @@ def normalize_path_data(path_d):
             i += 1
         elif cmd in 'LlTt':
             i += 1
-            x = float(segments[i])
+            try:
+                x = float(segments[i])
+            except (ValueError, IndexError):
+                i += 1
+                continue
             i += 1
-            y = float(segments[i])
+            try:
+                y = float(segments[i])
+            except (ValueError, IndexError):
+                i += 1
+                continue
             if cmd.islower():
                 x += current_x
                 y += current_y
@@ -173,7 +189,11 @@ def normalize_path_data(path_d):
             i += 1
         elif cmd in 'Hh':
             i += 1
-            x = float(segments[i])
+            try:
+                x = float(segments[i])
+            except (ValueError, IndexError):
+                i += 1
+                continue
             if cmd.islower():
                 x += current_x
             y = current_y
@@ -182,7 +202,11 @@ def normalize_path_data(path_d):
             i += 1
         elif cmd in 'Vv':
             i += 1
-            y = float(segments[i])
+            try:
+                y = float(segments[i])
+            except (ValueError, IndexError):
+                i += 1
+                continue
             if cmd.islower():
                 y += current_y
             x = current_x
@@ -553,9 +577,12 @@ def normalize_path_content(path_element: Element) -> str:
     
     # Normalize numbers (round to 3 decimal places to handle floating point differences)
     def round_numbers(match):
-        num = float(match.group())
-        return f"{num:.3f}"
-    
+        try:
+            num = float(match.group())
+            return f"{num:.3f}"
+        except ValueError:
+            return match.group()  # Return original if conversion fails
+
     content = re.sub(r'\\d+\\.?\\d*', round_numbers, content)
     
     return content.strip()
@@ -659,8 +686,11 @@ def normalize_svg_content(element: Element) -> str:
     
     # Normalize numbers (round to 3 decimal places to handle floating point differences)
     def round_numbers(match):
-        num = float(match.group())
-        return f"{num:.3f}"
+        try:
+            num = float(match.group())
+            return f"{num:.3f}"
+        except ValueError:
+            return match.group()  # Return original if conversion fails
     
     content = re.sub(r'\d+\.?\d*', round_numbers, content)
     
@@ -716,8 +746,15 @@ def normalize_coordinates_in_content(content: str) -> str:
         if not numbers:
             return path_d
         
-        # Convert to floats
-        coords = [float(n) for n in numbers if n]
+        # Convert to floats, handling potential conversion errors
+        coords = []
+        for n in numbers:
+            if n:
+                try:
+                    coords.append(float(n))
+                except ValueError:
+                    # Skip values that can't be converted to float
+                    continue
         
         # If the path has at least 2 coordinates, we can normalize
         if len(coords) >= 2:
@@ -753,7 +790,11 @@ def normalize_coordinates_in_content(content: str) -> str:
             for point in points_list:
                 if ',' in point:
                     x, y = point.split(',')
-                    coords.append((float(x.strip()), float(y.strip())))
+                    try:
+                        coords.append((float(x.strip()), float(y.strip())))
+                    except ValueError:
+                        # Skip invalid coordinates
+                        continue
             
             if coords:
                 # Find min x and y to normalize
@@ -773,9 +814,12 @@ def normalize_coordinates_in_content(content: str) -> str:
     
     # Normalize numbers (round to 3 decimal places to handle floating point differences)
     def round_numbers(match):
-        num = float(match.group())
-        return f"{num:.3f}"
-    
+        try:
+            num = float(match.group())
+            return f"{num:.3f}"
+        except ValueError:
+            return match.group()  # Return original if conversion fails
+
     content = re.sub(r'\d+\.?\d*', round_numbers, content)
     
     return content.strip()
@@ -1280,7 +1324,14 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
                     # Decompose the matrix and apply translation
                     matrix_match = re.match(r'matrix\(([^)]+)\)', original_transform.strip())
                     if matrix_match:
-                        values = [float(x.strip()) for x in matrix_match.group(1).split(',')]
+                        # Safely convert matrix values to floats
+                        values = []
+                        for x in matrix_match.group(1).split(','):
+                            try:
+                                values.append(float(x.strip()))
+                            except ValueError:
+                                # Skip invalid values
+                                continue
                         if len(values) == 6:
                             a, b, c, d, e, f = values
                             # Apply the translation to the existing translation components
