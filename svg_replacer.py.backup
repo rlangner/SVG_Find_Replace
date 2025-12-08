@@ -1259,18 +1259,11 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
     
     print(f"Found {len(matches)} matches")
     
-    # Process each match, but avoid overlapping matches
-    # Track which input groups have already been matched and removed
-    used_groups = set()
+    # Process each match
+    # Track occurrence numbers for unique IDs
     occurrence_counts = {}
     
     for matched_input_groups, find_id in matches:
-        # Check if any of the matched groups have already been used
-        already_used = any(group in used_groups for group in matched_input_groups)
-        if already_used:
-            print(f"Skipping match for {find_id} - some groups already used by another match")
-            continue
-        
         # Get the corresponding replace group
         replace_id = find_id.replace('find_', 'replace_')
         if replace_id not in replace_groups:
@@ -1281,10 +1274,6 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
         print(f"Replacing groups matching {find_id} with {replace_id}")
         
         if matched_input_groups:
-            # Mark these groups as used before processing
-            for group in matched_input_groups:
-                used_groups.add(group)
-            
             # Create a deep copy of the replacement group
             replacement = copy.deepcopy(replace_group)
             
@@ -1378,8 +1367,7 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
                 
                 # Remove all matched groups in the sequence (in reverse order to maintain indices)
                 for matched_group in reversed(matched_input_groups[1:]):
-                    if matched_group in parent:  # Check if still in parent before removing
-                        parent.remove(matched_group)
+                    parent.remove(matched_group)
                 
                 # Replace the first matched group with the replacement
                 parent[index] = replacement

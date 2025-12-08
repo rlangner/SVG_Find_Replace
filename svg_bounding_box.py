@@ -36,7 +36,17 @@ def parse_transform(transform_str):
     transforms = re.findall(r'(\w+)\s*\(\s*([^)]+)\s*\)', transform_str)
     
     for func, params_str in transforms:
-        params = [float(p.strip()) for p in params_str.split(',')]
+        # Handle both comma and space separators in transform parameters
+        # Also handle cases where multiple spaces or mixed separators exist
+        # Split by comma or whitespace, filter out empty strings
+        params_parts = [p.strip() for p in re.split(r'[,\s]+', params_str) if p.strip()]
+        params = []
+        for p in params_parts:
+            try:
+                params.append(float(p))
+            except ValueError:
+                # Skip invalid parameters
+                continue
         
         if func == 'matrix':
             # matrix(a, b, c, d, e, f)
