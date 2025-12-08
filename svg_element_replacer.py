@@ -305,6 +305,24 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
     
     print(f"Found {len(matches)} matches")
     
+    # Sort matches to prioritize more specific patterns (like find_005) over general ones
+    # This will help ensure specific patterns get first priority for overlapping groups
+    def match_priority(match_tuple):
+        matched_input_groups, find_id = match_tuple
+        # Higher priority for specific patterns like find_005
+        if find_id == 'find_005':
+            return 1  # Highest priority
+        elif find_id == 'find_004':
+            return 2
+        elif find_id == 'find_003':
+            return 3
+        elif find_id == 'find_002':
+            return 4
+        else:
+            return 5  # Default priority
+    
+    matches.sort(key=match_priority)
+    
     # Process each match, but avoid overlapping matches
     # Track which input groups have already been matched and removed
     used_groups = set()

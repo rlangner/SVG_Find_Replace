@@ -1048,6 +1048,26 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
                         has_correct_polygon_points and has_specific_coordinates):
                         print(f"Found matching sequence based on specific find_005 characteristics for {find_id}")
                         matching_input_groups.append(candidate_groups)
+        else:
+            # For other patterns, use the general matching logic
+            # Check if the candidate groups have the same path elements as the find group
+            if normalized_find_paths_set == normalized_candidate_paths_set:
+                print(f"Found matching sequence of {len(candidate_groups)} groups with same path elements as {find_id}")
+                matching_input_groups.append(candidate_groups)
+            elif normalized_find_paths_set.issubset(normalized_candidate_paths_set):
+                # If the candidate groups contain all the path elements from the find group (and maybe more)
+                print(f"Found matching sequence containing find group path elements: {find_id}")
+                matching_input_groups.append(candidate_groups)
+            else:
+                # Additional check: see if the shapes are similar by comparing structure more loosely
+                # This is especially important when dealing with relative vs absolute coordinates
+                # For other patterns, keep the original logic
+                find_shape_signature = create_shape_signature(normalized_find_paths)
+                candidate_shape_signature = create_shape_signature(normalized_candidate_paths)
+                
+                if find_shape_signature == candidate_shape_signature:
+                    print(f"Found matching sequence based on shape signature for {find_id}")
+                    matching_input_groups.append(candidate_groups)
 
         # Add the matching groups to results
         for input_group_sequence in matching_input_groups:

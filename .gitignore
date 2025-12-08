@@ -8,7 +8,6 @@ __pycache__/
 # Dependencies
 .venv/
 venv/
-node_modules/
 
 # Logs and temp files
 *.log
@@ -25,22 +24,47 @@ node_modules/
 .idea/
 
 # Coverage
-.coverage
 coverage/
 htmlcov/
+.coverage
 
-# Python specific
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-*.egg-info/
+# MyPy
+.mypy_cache/
+
+# Pytest
+.pytest_cache/
+
+# Distribution / packaging
 dist/
 build/
-*.dist-info/
+*.egg-info/
+*.egg
 
-# System files
+# OS generated files
 .DS_Store
 Thumbs.db
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```
