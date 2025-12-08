@@ -151,6 +151,212 @@ def find_parent(element: Element, root: Element) -> Optional[Element]:
     return None
 
 
+def get_transform_rotation_angle(transform_str):
+    """
+    Extract rotation angle from transform string if it contains a rotation.
+    Returns the rotation angle in degrees, or 0 if no rotation is found.
+    """
+    if not transform_str:
+        return 0.0
+    
+    # Look for rotate() in the transform
+    rotate_match = re.search(r'rotate\(([^)]+)\)', transform_str)
+    if rotate_match:
+        rotation_params = rotate_match.group(1).split(',')
+        if rotation_params:
+            try:
+                angle = float(rotation_params[0].strip())
+                return angle
+            except ValueError:
+                pass
+    
+    # Look for matrix transformations that might include rotation
+    matrix_match = re.search(r'matrix\(([^)]+)\)', transform_str)
+    if matrix_match:
+        values = [float(x.strip()) for x in matrix_match.group(1).split(',') if x.strip()]
+        if len(values) == 6:
+            a, b, c, d, e, f = values
+            # For a rotation matrix, the angle can be extracted using atan2
+            # The rotation angle in radians is atan2(b, a) or atan2(-c, d)
+            import math
+            # Use atan2(b, a) to get the rotation angle in radians
+            rotation_radians = math.atan2(b, a)
+            rotation_degrees = math.degrees(rotation_radians)
+            return rotation_degrees
+    
+    return 0.0
+
+
+def calculate_element_orientation(element: Element) -> float:
+    """
+    Calculate the orientation/rotation of an element by analyzing its path elements.
+    This function looks at both the transform attribute and the geometric orientation of the paths.
+    """
+    # First check for explicit transform
+    transform = element.get('transform', '')
+    explicit_rotation = get_transform_rotation_angle(transform)
+    
+    # Analyze geometric orientation from path elements
+    geometric_rotation = get_geometric_orientation(element)
+    
+    # For now, return the explicit rotation if available, otherwise the geometric rotation
+    if explicit_rotation != 0:
+        return explicit_rotation
+    else:
+        return geometric_rotation
+
+
+def get_geometric_orientation(element: Element) -> float:
+    """
+    Calculate the geometric orientation of an element by analyzing its path elements.
+    This function determines the orientation based on the principal axis of the shape.
+    """
+    import math
+    
+    # Collect all coordinates from all path/polygon/polyline elements
+    all_coords = []
+    
+    for path_elem in element.iter():
+        if path_elem.tag.endswith('path') and path_elem.get('d'):
+            d_attr = path_elem.get('d')
+            # Extract all coordinates from path data
+            coords = re.findall(r'[-+]?\d*\.?\d+', d_attr)
+            # Process coordinates in pairs (x, y)
+            for i in range(0, len(coords), 2):
+                if i + 1 < len(coords):
+                    try:
+                        x = float(coords[i])
+                        y = float(coords[i+1])
+                        all_coords.append((x, y))
+                    except ValueError:
+                        continue
+        elif path_elem.tag.endswith('polygon') or path_elem.tag.endswith('polyline'):
+            points = path_elem.get('points')
+            if points:
+                # Parse all coordinates from points
+                point_pairs = points.split()
+                for point_pair in point_pairs:
+                    if ',' in point_pair:
+                        x, y = point_pair.split(',')
+                        try:
+                            x = float(x.strip())
+                            y = float(y.strip())
+                            all_coords.append((x, y))
+                        except ValueError:
+                            continue
+    
+    if len(all_coords) < 2:
+        return 0.0  # Not enough points to determine orientation
+    
+    # Calculate centroid
+    cx = sum(coord[0] for coord in all_coords) / len(all_coords)
+    cy = sum(coord[1] for coord in all_coords) / len(all_coords)
+    
+    # Calculate covariance matrix components for PCA
+    sum_xx = sum((coord[0] - cx)**2 for coord in all_coords)
+    sum_yy = sum((coord[1] - cy)**2 for coord in all_coords)
+    sum_xy = sum((coord[0] - cx) * (coord[1] - cy) for coord in all_coords)
+    
+    # Calculate the angle of the principal axis
+    if sum_xx == sum_yy == 0:
+        return 0.0  # All points are the same
+    
+    # Calculate the angle using atan2
+    theta = 0.5 * math.atan2(2 * sum_xy, sum_xx - sum_yy)
+    angle_degrees = math.degrees(theta)
+    
+    # Normalize to be between -90 and 90 degrees
+    while angle_degrees > 90:
+        angle_degrees -= 180
+    while angle_degrees <= -90:
+        angle_degrees += 180
+    
+    return angle_degrees
+
+
+def apply_rotation_to_matrix(matrix_values, rotation_angle, center_x, center_y):
+    """
+    Apply a rotation transformation to an existing transformation matrix.
+    Returns the new matrix values as a list.
+    """
+    import math
+    
+    if len(matrix_values) != 6:
+        return matrix_values  # Return original if not a 2D transformation matrix
+    
+    a, b, c, d, e, f = matrix_values
+    
+    # Convert rotation angle to radians
+    angle_rad = math.radians(rotation_angle)
+    cos_angle = math.cos(angle_rad)
+    sin_angle = math.sin(angle_rad)
+    
+    # Create rotation matrix around the center point
+    # First, translate to center, apply rotation, then translate back
+    # Rotation matrix: [cos -sin 0; sin cos 0; 0 0 1]
+    # Translation matrix: [1 0 tx; 0 1 ty; 0 0 1]
+    # Combined: [cos -sin -cx*cos+cy*sin+cx; sin cos -cx*sin-cy*cos+cy; 0 0 1]
+    
+    # The transformation is: translate(-center) -> rotate -> translate(center) -> original_matrix
+    # First, create a rotation matrix around center
+    rot_a = cos_angle
+    rot_b = sin_angle
+    rot_c = -sin_angle
+    rot_d = cos_angle
+    rot_e = center_x * (1 - cos_angle) + center_y * sin_angle
+    rot_f = -center_x * sin_angle + center_y * (1 - cos_angle)
+    
+    # Then multiply the rotation matrix by the original matrix
+    # [rot_a rot_c rot_e]   [a c e]
+    # [rot_b rot_d rot_f] * [b d f]
+    # [0     0     1  ]   [0 0 1]
+    
+    new_a = rot_a * a + rot_c * b
+    new_b = rot_b * a + rot_d * b
+    new_c = rot_a * c + rot_c * d
+    new_d = rot_b * c + rot_d * d
+    new_e = rot_a * e + rot_c * f + rot_e
+    new_f = rot_b * e + rot_d * f + rot_f
+    
+    return [new_a, new_b, new_c, new_d, new_e, new_f]
+
+
+def calculate_group_rotation(groups: List[Element], lookup_root: Element, find_id: str) -> float:
+    """
+    Calculate the rotation of a matched group sequence by comparing it with the original lookup group.
+    Returns the rotation difference that should be applied to the replacement.
+    """
+    # Get the original find group from the lookup SVG
+    original_find_group = None
+    for g in lookup_root.iter('{http://www.w3.org/2000/svg}g'):
+        if g.get('id') == find_id:
+            original_find_group = g
+            break
+    
+    if original_find_group is None:
+        # If original find group not found, return 0
+        return 0.0
+    
+    # Calculate rotation of the original find group
+    original_rotation = calculate_element_orientation(original_find_group)
+    
+    # Calculate rotation of the matched input groups
+    # For simplicity, we'll use the first group's transform as representative
+    matched_rotation = calculate_element_orientation(groups[0])
+    
+    # Calculate the difference in rotation
+    rotation_difference = matched_rotation - original_rotation
+    
+    # Normalize the angle to be within -180 to 180 degrees
+    import math
+    while rotation_difference > 180:
+        rotation_difference -= 360
+    while rotation_difference <= -180:
+        rotation_difference += 360
+    
+    return rotation_difference
+
+
 def calculate_original_transform(groups: List[Element], input_root: Element) -> str:
     """
     Calculate the transform needed to position the replacement group at the same location
@@ -354,6 +560,11 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             # Calculate the target position (center of matched input groups)
             target_center_x, target_center_y = calculate_group_center_improved(matched_input_groups, input_root)
             
+            # Calculate the rotation difference between the matched input groups and the lookup find group
+            lookup_tree_rotation = ET.parse(lookup_svg_path)
+            lookup_root_rotation = lookup_tree_rotation.getroot()
+            rotation_difference = calculate_group_rotation(matched_input_groups, lookup_root_rotation, find_id)
+            
             # Calculate the original position of the replacement group in the lookup SVG
             # We need to determine where the replacement group would be positioned if placed without any transformation
             lookup_tree = ET.parse(lookup_svg_path)
@@ -385,7 +596,7 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             
             # Create the final transform
             if original_transform:
-                # Combine the original transform with the positioning transform
+                # Combine the original transform with the positioning transform and rotation
                 # For matrix transforms, we need to apply the translation after the original matrix
                 if original_transform.strip().startswith('matrix'):
                     # Decompose the matrix and apply translation
@@ -401,22 +612,44 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
                                 continue
                         if len(values) == 6:
                             a, b, c, d, e, f = values
-                            # Apply the translation to the existing translation components
-                            final_e = e + translation_x
-                            final_f = f + translation_y
-                            final_transform = f"matrix({a},{b},{c},{d},{final_e},{final_f})"
+                            # Apply rotation to the matrix if there's a rotation difference
+                            if rotation_difference != 0:
+                                # Apply rotation to the existing matrix
+                                new_values = apply_rotation_to_matrix([a, b, c, d, e, f], rotation_difference, original_center_x, original_center_y)
+                                # Apply the translation to the rotated matrix components
+                                final_e = new_values[4] + translation_x
+                                final_f = new_values[5] + translation_y
+                                final_transform = f"matrix({new_values[0]},{new_values[1]},{new_values[2]},{new_values[3]},{final_e},{final_f})"
+                            else:
+                                # Apply the translation to the existing translation components
+                                final_e = e + translation_x
+                                final_f = f + translation_y
+                                final_transform = f"matrix({a},{b},{c},{d},{final_e},{final_f})"
                         else:
                             # If matrix format is wrong, combine with translate
-                            final_transform = f"{original_transform} translate({translation_x},{translation_y})"
+                            if rotation_difference != 0:
+                                final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
+                            else:
+                                final_transform = f"{original_transform} translate({translation_x},{translation_y})"
                     else:
                         # If matrix format is wrong, combine with translate
-                        final_transform = f"{original_transform} translate({translation_x},{translation_y})"
+                        if rotation_difference != 0:
+                            final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
+                        else:
+                            final_transform = f"{original_transform} translate({translation_x},{translation_y})"
                 else:
-                    # For other transforms, just append the translation
-                    final_transform = f"{original_transform} translate({translation_x},{translation_y})"
+                    # For other transforms, append rotation and translation
+                    if rotation_difference != 0:
+                        # Calculate the center point around which to rotate (use the original replacement center)
+                        final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
+                    else:
+                        final_transform = f"{original_transform} translate({translation_x},{translation_y})"
             else:
-                # No original transform, just use the translation
-                final_transform = f"translate({translation_x},{translation_y})"
+                # No original transform, apply rotation and then translation
+                if rotation_difference != 0:
+                    final_transform = f"rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
+                else:
+                    final_transform = f"translate({translation_x},{translation_y})"
             
             # Apply the final transform to the replacement group
             replacement.set('transform', final_transform)
