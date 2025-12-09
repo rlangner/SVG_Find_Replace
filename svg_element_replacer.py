@@ -362,17 +362,21 @@ def calculate_group_rotation(groups: List[Element], lookup_root: Element, find_i
     return 0.0
 
 
-def calculate_original_transform(groups: List[Element], input_root: Element) -> str:
+def calculate_world_transform(element: Element, input_root: Element) -> Tuple[float, float, float]:
     """
-    Calculate the transform needed to position the replacement group at the same location
-    as the matched groups in the input SVG.
+    Calculate the world transform of an element by traversing up the hierarchy.
+    Returns the final position (x, y) and rotation of the element in world coordinates.
     """
-    # Find the first group in the sequence to get its transform
-    first_group = groups[0]
+    import math
     
-    # First, check if there are any transforms in the hierarchy
+    # Start with identity transformation
+    world_x, world_y = 0.0, 0.0
+    world_rotation = 0.0
+    
+    # Collect all transforms from the element up to the root
+    current = element
     transforms = []
-    current = first_group
+    
     while current is not None and current != input_root:
         transform_attr = current.get('transform')
         if transform_attr:
@@ -380,65 +384,54 @@ def calculate_original_transform(groups: List[Element], input_root: Element) -> 
         parent = find_parent(current, input_root)
         current = parent
     
-    if transforms:
-        # If there are explicit transforms in the hierarchy, use those
-        # Apply transforms in the correct order (from parent to child)
-        transforms.reverse()
-        return ' '.join(transforms)
-    else:
-        # If no explicit transforms found in the hierarchy, 
-        # calculate the position by examining the coordinates of path elements
-        # and find the center or a representative coordinate of the group
-        
-        # Collect all coordinates from all path/polygon/polyline elements in the group sequence
-        all_coords = []
-        
-        for group in groups:
-            for path_elem in group.iter():
-                if path_elem.tag.endswith('path') and path_elem.get('d'):
-                    d_attr = path_elem.get('d')
-                    # Extract all coordinates from path data
-                    coords = re.findall(r'[-+]?\d*\.?\d+', d_attr)
-                    # Process coordinates in pairs (x, y)
-                    for i in range(0, len(coords), 2):
-                        if i + 1 < len(coords):
-                            try:
-                                x = float(coords[i])
-                                y = float(coords[i+1])
-                                all_coords.append((x, y))
-                            except ValueError:
-                                continue
-                elif path_elem.tag.endswith('polygon') or path_elem.tag.endswith('polyline'):
-                    points = path_elem.get('points')
-                    if points:
-                        # Parse all coordinates from points
-                        point_pairs = points.split()
-                        for point_pair in point_pairs:
-                            if ',' in point_pair:
-                                x, y = point_pair.split(',')
-                                try:
-                                    x = float(x.strip())
-                                    y = float(y.strip())
-                                    all_coords.append((x, y))
-                                except ValueError:
-                                    continue
-        
-        if all_coords:
-            # Calculate the center of the matched groups for positioning
-            matched_center_x = sum(coord[0] for coord in all_coords) / len(all_coords)
-            matched_center_y = sum(coord[1] for coord in all_coords) / len(all_coords)
-            
-            # Find the minimum x and y to get the top-left position for comparison
-            min_x = min(coord[0] for coord in all_coords)
-            min_y = min(coord[1] for coord in all_coords)
-            
-            print(f"DEBUG: Positioning - Min coordinates: ({min_x}, {min_y}), Matched group center: ({matched_center_x}, {matched_center_y}), Total coords: {len(all_coords)}")
-            
-            return f"translate({matched_center_x},{matched_center_y})"
-        else:
-            # If no coordinates found in path elements, return empty string
-            print("DEBUG: No coordinates found for positioning")
-            return ''
+    # Apply transforms in reverse order (from root to element)
+    transforms.reverse()
+    
+    for transform in transforms:
+        # Handle different transform types
+        if 'translate(' in transform:
+            # Extract translate values
+            translate_match = re.search(r'translate\(([^)]+)\)', transform)
+            if translate_match:
+                values = translate_match.group(1).split(',')
+                if len(values) >= 2:
+                    try:
+                        tx = float(values[0].strip())
+                        ty = float(values[1].strip())
+                        world_x += tx
+                        world_y += ty
+                    except ValueError:
+                        continue
+        elif 'rotate(' in transform:
+            # Extract rotation values
+            rotate_match = re.search(r'rotate\(([^)]+)\)', transform)
+            if rotate_match:
+                values = rotate_match.group(1).split(',')
+                if values:
+                    try:
+                        angle = float(values[0].strip())
+                        world_rotation += angle
+                    except ValueError:
+                        continue
+        elif 'matrix(' in transform:
+            # Extract matrix values and calculate the translation and rotation
+            matrix_match = re.search(r'matrix\(([^)]+)\)', transform)
+            if matrix_match:
+                values = [float(x.strip()) for x in matrix_match.group(1).split(',') if x.strip()]
+                if len(values) == 6:
+                    a, b, c, d, e, f = values
+                    # Apply the transformation matrix to the current point
+                    # [x']   [a c e] [x]   [a*x + c*y + e]
+                    # [y'] = [b d f] [y] = [b*x + d*y + f]
+                    # [1 ]   [0 0 1] [1]   [      1     ]
+                    new_world_x = world_x * a + world_y * c + e
+                    new_world_y = world_x * b + world_y * d + f
+                    world_x, world_y = new_world_x, new_world_y
+                    # Calculate rotation from matrix
+                    rotation_radians = math.atan2(b, a)
+                    world_rotation += math.degrees(rotation_radians)
+    
+    return world_x, world_y, world_rotation
 
 
 def get_element_position_info(element: Element) -> Tuple[Optional[str], Optional[str]]:
@@ -563,7 +556,18 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             original_transform = replace_group.get('transform', '')
             
             # Calculate the target position (center of matched input groups)
-            target_center_x, target_center_y = calculate_group_center_improved(matched_input_groups, input_root)
+            # Get the world transform of the first matched group to account for parent hierarchy transforms
+            first_matched_group = matched_input_groups[0]
+            world_x, world_y, world_rotation = calculate_world_transform(first_matched_group, input_root)
+            
+            # Calculate the local center of the matched groups (relative to the first group's position)
+            # This gives us the offset from the first group's position to the center of all matched groups
+            local_center_x, local_center_y = calculate_group_center_improved(matched_input_groups, input_root)
+            
+            # The target center is the world position of the first group plus the local center offset
+            # This accounts for all parent transforms and the relative position within the matched groups
+            target_center_x = world_x + local_center_x
+            target_center_y = world_y + local_center_y
             
             # Calculate the rotation difference between the matched input groups and the lookup find group
             lookup_tree_rotation = ET.parse(lookup_svg_path)
@@ -596,30 +600,26 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             original_center_y = original_replacement_center_y
             
             # Create the final transform
-            # For the replace_003_6 element specifically, we need to position it at (4350, 4734) with 180 degree rotation
-            if replace_id == "replace_003_6":
-                final_transform = f"rotate(180,4350,4734)"
-            else:
-                # Calculate the translation needed to move the replacement to the target position
-                translation_x = target_center_x - original_center_x
-                translation_y = target_center_y - original_center_y
-                
-                # If the original replacement has a transform, we need to account for it properly
-                if original_transform:
-                    # The original transform in the lookup SVG positions the element relative to its original position
-                    # We need to override this to position it at the target location with proper rotation
-                    if rotation_difference != 0:
-                        # Apply the target rotation at the target location
-                        final_transform = f"rotate({rotation_difference},{target_center_x},{target_center_y})"
-                    else:
-                        # No rotation difference, just position at target
-                        final_transform = f"translate({target_center_x - original_center_x + translation_x},{target_center_y - original_center_y + translation_y})"
+            # Calculate the translation needed to move the replacement to the target position
+            translation_x = target_center_x - original_center_x
+            translation_y = target_center_y - original_center_y
+            
+            # If the original replacement has a transform, we need to account for it properly
+            if original_transform:
+                # The original transform in the lookup SVG positions the element relative to its original position
+                # We need to override this to position it at the target location with proper rotation
+                if rotation_difference != 0:
+                    # Apply the target rotation at the target location
+                    final_transform = f"rotate({rotation_difference},{target_center_x},{target_center_y})"
                 else:
-                    # No original transform on replacement, apply rotation and translation directly
-                    if rotation_difference != 0:
-                        final_transform = f"rotate({rotation_difference},{target_center_x},{target_center_y})"
-                    else:
-                        final_transform = f"translate({target_center_x},{target_center_y})"
+                    # No rotation difference, just position at target
+                    final_transform = f"translate({translation_x},{translation_y})"
+            else:
+                # No original transform on replacement, apply rotation and translation directly
+                if rotation_difference != 0:
+                    final_transform = f"rotate({rotation_difference},{target_center_x},{target_center_y})"
+                else:
+                    final_transform = f"translate({target_center_x},{target_center_y})"
             
             # Apply the final transform to the replacement group
             replacement.set('transform', final_transform)
