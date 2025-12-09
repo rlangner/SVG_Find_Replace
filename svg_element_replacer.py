@@ -600,61 +600,26 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             translation_y = target_center_y - original_center_y
             
             # Create the final transform
+            # We want to position the replacement element at the target location (target_center_x, target_center_y)
+            # with the required rotation. We need to calculate the transform that moves the original replacement
+            # element (which has its own original_transform in the lookup SVG) to the correct location.
+            
+            # If the original replacement has a transform, we need to account for it properly
             if original_transform:
-                # Combine the original transform with the positioning transform and rotation
-                # For matrix transforms, we need to apply the translation after the original matrix
-                if original_transform.strip().startswith('matrix'):
-                    # Decompose the matrix and apply translation
-                    matrix_match = re.match(r'matrix\(([^)]+)\)', original_transform.strip())
-                    if matrix_match:
-                        # Safely convert matrix values to floats
-                        values = []
-                        for x in matrix_match.group(1).split(','):
-                            try:
-                                values.append(float(x.strip()))
-                            except ValueError:
-                                # Skip invalid values
-                                continue
-                        if len(values) == 6:
-                            a, b, c, d, e, f = values
-                            # Apply rotation to the matrix if there's a rotation difference
-                            if rotation_difference != 0:
-                                # Apply rotation to the existing matrix
-                                new_values = apply_rotation_to_matrix([a, b, c, d, e, f], rotation_difference, original_center_x, original_center_y)
-                                # Apply the translation to the rotated matrix components
-                                final_e = new_values[4] + translation_x
-                                final_f = new_values[5] + translation_y
-                                final_transform = f"matrix({new_values[0]},{new_values[1]},{new_values[2]},{new_values[3]},{final_e},{final_f})"
-                            else:
-                                # Apply the translation to the existing translation components
-                                final_e = e + translation_x
-                                final_f = f + translation_y
-                                final_transform = f"matrix({a},{b},{c},{d},{final_e},{final_f})"
-                        else:
-                            # If matrix format is wrong, combine with translate
-                            if rotation_difference != 0:
-                                final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
-                            else:
-                                final_transform = f"{original_transform} translate({translation_x},{translation_y})"
-                    else:
-                        # If matrix format is wrong, combine with translate
-                        if rotation_difference != 0:
-                            final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
-                        else:
-                            final_transform = f"{original_transform} translate({translation_x},{translation_y})"
-                else:
-                    # For other transforms, append rotation and translation
-                    if rotation_difference != 0:
-                        # Calculate the center point around which to rotate (use the original replacement center)
-                        final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
-                    else:
-                        final_transform = f"{original_transform} translate({translation_x},{translation_y})"
-            else:
-                # No original transform, apply rotation and then translation
+                # The original transform in the lookup SVG positions the element relative to its original position
+                # We need to override this to position it at the target location with proper rotation
                 if rotation_difference != 0:
-                    final_transform = f"rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
+                    # Apply the target rotation at the target location
+                    final_transform = f"rotate({rotation_difference},{target_center_x},{target_center_y})"
                 else:
-                    final_transform = f"translate({translation_x},{translation_y})"
+                    # No rotation difference, just position at target
+                    final_transform = f"translate({target_center_x - original_center_x + translation_x},{target_center_y - original_center_y + translation_y})"
+            else:
+                # No original transform on replacement, apply rotation and translation directly
+                if rotation_difference != 0:
+                    final_transform = f"rotate({rotation_difference},{target_center_x},{target_center_y})"
+                else:
+                    final_transform = f"translate({target_center_x},{target_center_y})"
             
             # Apply the final transform to the replacement group
             replacement.set('transform', final_transform)
