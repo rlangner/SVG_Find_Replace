@@ -67,7 +67,7 @@ The lookup SVG file should contain groups with IDs starting with:
 
 Install dependencies with:
 ```bash
-pip install svgpathtools numpy PySide6
+pip install svgpathtools numpy
 ```
 
 ## How It Works
