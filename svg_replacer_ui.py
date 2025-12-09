@@ -22,31 +22,31 @@ class MainWindow(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("SVG Group Replacer")
-        self.geometry("850x600")
+        self.geometry("600x600")
 
         # ----- INPUT FILE SECTION -----
         frame_input = ttk.LabelFrame(self, text="Input SVG File")
         frame_input.pack(fill="x", padx=10, pady=5)
 
         self.input_path = tk.StringVar()
-        ttk.Entry(frame_input, textvariable=self.input_path, width=90).pack(side="right", padx=5)
-        ttk.Button(frame_input, text="Browse", command=self.pick_file_input).pack(side="right")
+        ttk.Entry(frame_input, textvariable=self.input_path).pack(fill="x", expand=True, side="right", padx=5)
+        ttk.Button(frame_input, text="Browse", command=self.pick_file_input).pack(side="left")
 
         # ----- LOOKUP FILE SECTION -----
         frame_lookup = ttk.LabelFrame(self, text="Lookup SVG File")
         frame_lookup.pack(fill="x", padx=10, pady=5)
 
         self.lookup_path = tk.StringVar()
-        ttk.Entry(frame_lookup, textvariable=self.lookup_path, width=90).pack(side="right", padx=5)
-        ttk.Button(frame_lookup, text="Browse", command=self.pick_file_lookup).pack(side="right")
+        ttk.Entry(frame_lookup, textvariable=self.lookup_path).pack(fill="x", expand=True, side="right", padx=5)
+        ttk.Button(frame_lookup, text="Browse", command=self.pick_file_lookup).pack(side="left")
 
         # ----- OUTPUT FILE SECTION -----
         frame_output = ttk.LabelFrame(self, text="Output SVG File")
         frame_output.pack(fill="x", padx=10, pady=5)
 
         self.output_path = tk.StringVar()
-        ttk.Entry(frame_output, textvariable=self.output_path, width=90).pack(side="right", padx=5)
-        ttk.Button(frame_output, text="Browse", command=self.pick_file_output).pack(side="right")
+        ttk.Entry(frame_output, textvariable=self.output_path).pack(fill="x", expand=True, side="right", padx=5)
+        ttk.Button(frame_output, text="Browse", command=self.pick_file_output).pack(side="left")
 
         # ----- RUN BUTTON -----
         ttk.Button(self, text="Run Find and Replace", command=self.run_find_replace).pack(
