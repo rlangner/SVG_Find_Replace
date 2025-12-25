@@ -484,9 +484,6 @@ def get_element_position_info(element: Element) -> Tuple[Optional[str], Optional
                         except ValueError:
                             continue
     
-    return transform, coords_info
-
-
 def calculate_group_size(groups: List[Element], svg_root: Element) -> Tuple[float, float]:
     """
     Calculate the size (width and height) of a sequence of groups using the improved bounding box calculation.
@@ -668,43 +665,57 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
                 original_width, original_height = calculate_group_size([replace_group], lookup_root)
             
             # Calculate the scale factors needed to match the input size
-            scale_x = input_width / original_width if original_width != 0 else 1.0
-            scale_y = input_height / original_height if original_height != 0 else 1.0
+            # Add minimum values to avoid division by zero
+            # Handle degenerate cases where input has 0 width or height
+            min_dimension = 0.001
+            if input_width == 0:
+                scale_x = 1.0  # Don't scale in x direction if input is degenerate
+            else:
+                scale_x = input_width / max(original_width, min_dimension) if original_width != 0 else 1.0
+                
+            if input_height == 0:
+                scale_y = 1.0  # Don't scale in y direction if input is degenerate
+            else:
+                scale_y = input_height / max(original_height, min_dimension) if original_height != 0 else 1.0
             
             # Calculate the translation needed to move the replacement to the target position
-            # Adjust for the scale - the translation should account for the original center being scaled
-            translation_x = target_center_x - (original_replacement_center_x * scale_x)
-            translation_y = target_center_y - (original_replacement_center_y * scale_y)
+            # We need to account for the original position and scale
+            # The correct approach: scale first, then move to the target position
+            # Calculate where the original center would be after scaling
+            scaled_original_center_x = original_replacement_center_x * scale_x
+            scaled_original_center_y = original_replacement_center_y * scale_y
             
+            # Calculate the translation to move the scaled original center to the target center
+            translation_x = target_center_x - scaled_original_center_x
+            translation_y = target_center_y - scaled_original_center_y
+
             # Create the final transform with scale, rotation, and translation
-            # Start with the scale transform
-            if abs(scale_x - 1.0) < 0.001 and abs(scale_y - 1.0) < 0.001:
-                # No scaling needed
-                scale_transform = ""
-            else:
-                # Apply scaling around the original center point
-                scale_transform = f"scale({scale_x},{scale_y})"
-            
+            # Build the transform in the correct order: scale, then rotate (around center), then translate
+            transform_parts = []
+
+            # Apply scaling first
+            if abs(scale_x - 1.0) > 0.001 or abs(scale_y - 1.0) > 0.001:
+                # Apply scaling - note that if there are internal transforms, 
+                # we need to be careful about the order
+                if abs(scale_x - scale_y) < 0.001:  # Uniform scaling
+                    transform_parts.append(f"scale({scale_x})")
+                else:  # Non-uniform scaling
+                    transform_parts.append(f"scale({scale_x},{scale_y})")
+
             # Calculate the rotation difference between the matched input groups and the lookup find group
             lookup_tree_rotation = ET.parse(lookup_svg_path)
             lookup_root_rotation = lookup_tree_rotation.getroot()
             rotation_difference = calculate_group_rotation(matched_input_groups, lookup_root_rotation, find_id)
-            
-            # Build the final transform string
-            transform_parts = []
-            
-            if scale_transform:
-                transform_parts.append(scale_transform)
-            
+
             if rotation_difference != 0:
-                # Apply rotation around the original center point (before scaling)
-                transform_parts.append(f"rotate({rotation_difference},{original_replacement_center_x},{original_replacement_center_y})")
-            
+                # Apply rotation around the original center point (before scaling and translation)
+                transform_parts.append(f"rotate({rotation_difference} {original_replacement_center_x} {original_replacement_center_y})")
+
             # Finally, apply the translation to move to the target position
             transform_parts.append(f"translate({translation_x},{translation_y})")
-            
+
             final_transform = " ".join(transform_parts)
-            
+
             # Apply the final transform to the replacement group
             replacement.set('transform', final_transform)
             
