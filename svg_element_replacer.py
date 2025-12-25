@@ -487,6 +487,88 @@ def get_element_position_info(element: Element) -> Tuple[Optional[str], Optional
     return transform, coords_info
 
 
+def calculate_group_size(groups: List[Element], svg_root: Element) -> Tuple[float, float]:
+    """
+    Calculate the size (width and height) of a sequence of groups using the improved bounding box calculation.
+    """
+    import xml.etree.ElementTree as ET
+    import uuid
+    
+    # Create a temporary SVG structure to pass to calculate_group_bbox
+    # We'll create a temporary group with a unique ID
+    temp_group = ET.Element('g')
+    temp_id = f"temp_group_{uuid.uuid4().hex[:8]}"
+    temp_group.set('id', temp_id)
+    
+    # Add all the elements from the groups to the temporary group
+    for group in groups:
+        # Deep copy each element to avoid modifying the original
+        temp_group.append(copy.deepcopy(group))
+    
+    # Add the temporary group to the SVG root temporarily
+    svg_root.append(temp_group)
+    
+    try:
+        # Calculate the bounding box of the temporary group
+        bbox = calculate_group_bbox(svg_root, temp_id)
+        
+        if bbox:
+            # Calculate the size of the bounding box
+            width = bbox['max_x'] - bbox['min_x']
+            height = bbox['max_y'] - bbox['min_y']
+            
+            return width, height
+        else:
+            # Fallback to calculating from coordinates directly
+            all_coords = []
+            for group in groups:
+                for path_elem in group.iter():
+                    if path_elem.tag.endswith('path') and path_elem.get('d'):
+                        d_attr = path_elem.get('d')
+                        # Extract coordinates from path data
+                        coords = re.findall(r'[-+]?\d*\.?\d+', d_attr)
+                        # Process coordinates in pairs (x, y)
+                        for i in range(0, len(coords), 2):
+                            if i + 1 < len(coords):
+                                try:
+                                    x = float(coords[i])
+                                    y = float(coords[i + 1])
+                                    all_coords.append((x, y))
+                                except ValueError:
+                                    continue
+                    elif path_elem.tag.endswith('polygon') or path_elem.tag.endswith('polyline'):
+                        points = path_elem.get('points')
+                        if points:
+                            # Parse coordinates from points attribute
+                            point_pairs = points.split()
+                            for point_pair in point_pairs:
+                                if ',' in point_pair:
+                                    x, y = point_pair.split(',')
+                                    try:
+                                        x = float(x.strip())
+                                        y = float(y.strip())
+                                        all_coords.append((x, y))
+                                    except ValueError:
+                                        continue
+            
+            if not all_coords:
+                return 0.0, 0.0
+            
+            # Calculate bounding box
+            min_x = min(coord[0] for coord in all_coords)
+            min_y = min(coord[1] for coord in all_coords)
+            max_x = max(coord[0] for coord in all_coords)
+            max_y = max(coord[1] for coord in all_coords)
+            
+            width = max_x - min_x
+            height = max_y - min_y
+            
+            return width, height
+    finally:
+        # Remove the temporary group from the root
+        svg_root.remove(temp_group)
+
+
 def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_path: str):
     """
     Main function to replace matching groups in input SVG with replacement groups from lookup SVG.
@@ -559,23 +641,17 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             occurrence_counts[find_id] = occurrence_counts.get(find_id, 0) + 1
             replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
             
-            # Get the original transform of the replacement group
-            original_transform = replace_group.get('transform', '')
-            
             # Calculate the target position (center of matched input groups)
             target_center_x, target_center_y = calculate_group_center_improved(matched_input_groups, input_root)
             
-            # Calculate the rotation difference between the matched input groups and the lookup find group
-            lookup_tree_rotation = ET.parse(lookup_svg_path)
-            lookup_root_rotation = lookup_tree_rotation.getroot()
-            rotation_difference = calculate_group_rotation(matched_input_groups, lookup_root_rotation, find_id)
+            # Calculate the size of the matched groups in the input SVG
+            input_width, input_height = calculate_group_size(matched_input_groups, input_root)
             
-            # Calculate the original position of the replacement group in the lookup SVG
-            # We need to determine where the replacement group would be positioned if placed without any transformation
+            # Calculate the original position and size of the replacement group in the lookup SVG
             lookup_tree = ET.parse(lookup_svg_path)
             lookup_root = lookup_tree.getroot()
             
-            # Find the original replacement group in the lookup SVG to get its original position
+            # Find the original replacement group in the lookup SVG to get its original position and size
             original_lookup_group = None
             for g in lookup_root.iter('{http://www.w3.org/2000/svg}g'):
                 if g.get('id') == replace_id:
@@ -583,78 +659,51 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
                     break
             
             if original_lookup_group is not None:
-                # Calculate the original position of the replacement group in the lookup SVG
+                # Calculate the original position and size of the replacement group in the lookup SVG
                 original_replacement_center_x, original_replacement_center_y = calculate_group_center_improved([original_lookup_group], lookup_root)
+                original_width, original_height = calculate_group_size([original_lookup_group], lookup_root)
             else:
                 # Fallback: calculate from the copied replacement group
                 original_replacement_center_x, original_replacement_center_y = calculate_group_center_improved([replace_group], lookup_root)
+                original_width, original_height = calculate_group_size([replace_group], lookup_root)
             
-            # For the positioning, we want to find where the original replacement element is located in the lookup SVG
-            # The calculate_group_center_improved function returns the center of the element considering its transforms
-            # So original_replacement_center_x, original_replacement_center_y is the actual position of the element in the lookup SVG
-            original_center_x = original_replacement_center_x
-            original_center_y = original_replacement_center_y
+            # Calculate the scale factors needed to match the input size
+            scale_x = input_width / original_width if original_width != 0 else 1.0
+            scale_y = input_height / original_height if original_height != 0 else 1.0
             
             # Calculate the translation needed to move the replacement to the target position
-            translation_x = target_center_x - original_center_x
-            translation_y = target_center_y - original_center_y
+            # Adjust for the scale - the translation should account for the original center being scaled
+            translation_x = target_center_x - (original_replacement_center_x * scale_x)
+            translation_y = target_center_y - (original_replacement_center_y * scale_y)
             
-            # Create the final transform
-            if original_transform:
-                # Combine the original transform with the positioning transform and rotation
-                # For matrix transforms, we need to apply the translation after the original matrix
-                if original_transform.strip().startswith('matrix'):
-                    # Decompose the matrix and apply translation
-                    matrix_match = re.match(r'matrix\(([^)]+)\)', original_transform.strip())
-                    if matrix_match:
-                        # Safely convert matrix values to floats
-                        values = []
-                        for x in matrix_match.group(1).split(','):
-                            try:
-                                values.append(float(x.strip()))
-                            except ValueError:
-                                # Skip invalid values
-                                continue
-                        if len(values) == 6:
-                            a, b, c, d, e, f = values
-                            # Apply rotation to the matrix if there's a rotation difference
-                            if rotation_difference != 0:
-                                # Apply rotation to the existing matrix
-                                new_values = apply_rotation_to_matrix([a, b, c, d, e, f], rotation_difference, original_center_x, original_center_y)
-                                # Apply the translation to the rotated matrix components
-                                final_e = new_values[4] + translation_x
-                                final_f = new_values[5] + translation_y
-                                final_transform = f"matrix({new_values[0]},{new_values[1]},{new_values[2]},{new_values[3]},{final_e},{final_f})"
-                            else:
-                                # Apply the translation to the existing translation components
-                                final_e = e + translation_x
-                                final_f = f + translation_y
-                                final_transform = f"matrix({a},{b},{c},{d},{final_e},{final_f})"
-                        else:
-                            # If matrix format is wrong, combine with translate
-                            if rotation_difference != 0:
-                                final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
-                            else:
-                                final_transform = f"{original_transform} translate({translation_x},{translation_y})"
-                    else:
-                        # If matrix format is wrong, combine with translate
-                        if rotation_difference != 0:
-                            final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
-                        else:
-                            final_transform = f"{original_transform} translate({translation_x},{translation_y})"
-                else:
-                    # For other transforms, append rotation and translation
-                    if rotation_difference != 0:
-                        # Calculate the center point around which to rotate (use the original replacement center)
-                        final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
-                    else:
-                        final_transform = f"{original_transform} translate({translation_x},{translation_y})"
+            # Create the final transform with scale, rotation, and translation
+            # Start with the scale transform
+            if abs(scale_x - 1.0) < 0.001 and abs(scale_y - 1.0) < 0.001:
+                # No scaling needed
+                scale_transform = ""
             else:
-                # No original transform, apply rotation and then translation
-                if rotation_difference != 0:
-                    final_transform = f"rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
-                else:
-                    final_transform = f"translate({translation_x},{translation_y})"
+                # Apply scaling around the original center point
+                scale_transform = f"scale({scale_x},{scale_y})"
+            
+            # Calculate the rotation difference between the matched input groups and the lookup find group
+            lookup_tree_rotation = ET.parse(lookup_svg_path)
+            lookup_root_rotation = lookup_tree_rotation.getroot()
+            rotation_difference = calculate_group_rotation(matched_input_groups, lookup_root_rotation, find_id)
+            
+            # Build the final transform string
+            transform_parts = []
+            
+            if scale_transform:
+                transform_parts.append(scale_transform)
+            
+            if rotation_difference != 0:
+                # Apply rotation around the original center point (before scaling)
+                transform_parts.append(f"rotate({rotation_difference},{original_replacement_center_x},{original_replacement_center_y})")
+            
+            # Finally, apply the translation to move to the target position
+            transform_parts.append(f"translate({translation_x},{translation_y})")
+            
+            final_transform = " ".join(transform_parts)
             
             # Apply the final transform to the replacement group
             replacement.set('transform', final_transform)
