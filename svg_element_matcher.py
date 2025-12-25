@@ -881,12 +881,20 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
     for find_id, find_group in find_groups.items():
         print(f"Looking for match for find group {find_id}")
         
-        # Extract path elements from find group subgroups
+        # Extract path elements from find group - try both direct children and all descendants
         find_path_elements = []
         find_subgroups = []
+        
+        # First, try the original approach (direct children)
         for subgroup in find_group:  # Direct children of the find group
             find_path_elements.extend(extract_path_elements(subgroup))
             find_subgroups.append(subgroup)
+        
+        # If no path elements found in direct children, try extracting from the find group itself
+        if not find_path_elements:
+            find_path_elements = extract_path_elements(find_group)
+            # If we're extracting from the group itself, treat the whole group as one unit
+            find_subgroups = [find_group]
         
         print(f"Find group {find_id} has {len(find_path_elements)} path elements in {len(find_subgroups)} subgroups")
         
@@ -903,70 +911,60 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
         # Look for input groups that contain path elements matching the find group
         matching_input_groups = []
         
-        # Try to match sequences of consecutive groups that match the pattern
-        for i in range(len(input_groups)):
-            # Check if we have enough remaining groups to match the find pattern
-            if i + len(find_subgroups) > len(input_groups):
-                continue
-                
-            # Get a sequence of input groups to compare
-            candidate_groups = input_groups[i:i+len(find_subgroups)]
-            
-            # Extract path elements from these candidate groups
-            candidate_path_elements = []
-            for group in candidate_groups:
-                candidate_path_elements.extend(extract_path_elements(group))
+        # Try to match single groups first (for cases where the structure is different)
+        for i, input_group in enumerate(input_groups):
+            candidate_path_elements = extract_path_elements(input_group)
             
             if not candidate_path_elements:
                 continue
                 
-            # Normalize path elements in these candidate groups
+            # Normalize path elements in this candidate group
             normalized_candidate_paths = [normalize_path_content(path_elem) for path_elem in candidate_path_elements]
             normalized_candidate_paths_set = set(normalized_candidate_paths)
             
-            # Check if the candidate groups have the same path elements as the find group
+            # Check if the candidate group has the same path elements as the find group
             if normalized_find_paths_set == normalized_candidate_paths_set:
-                # Additional check: verify that the subgroup structure matches
-                # Compare each subgroup in the find group with the corresponding candidate group
-                structure_matches = True
-                for j, find_subgroup in enumerate(find_subgroups):
-                    if j < len(candidate_groups):
-                        candidate_group = candidate_groups[j]
-                        if not groups_match_structure(find_subgroup, candidate_group):
-                            structure_matches = False
-                            break
-                    else:
-                        structure_matches = False
-                        break
-                
-                if structure_matches:
-                    print(f"Found matching sequence of {len(candidate_groups)} groups with same path elements and structure as {find_id}")
-                    matching_input_groups.append(candidate_groups)
+                print(f"Found matching single group with same path elements as {find_id}")
+                matching_input_groups.append([input_group])
             elif normalized_find_paths_set.issubset(normalized_candidate_paths_set):
-                # If the candidate groups contain all the path elements from the find group (and maybe more)
-                # Check if the subgroup structure matches
-                structure_matches = True
-                for j, find_subgroup in enumerate(find_subgroups):
-                    if j < len(candidate_groups):
-                        candidate_group = candidate_groups[j]
-                        if not groups_match_structure(find_subgroup, candidate_group):
-                            structure_matches = False
-                            break
-                    else:
-                        structure_matches = False
-                        break
-                
-                if structure_matches:
-                    print(f"Found matching sequence containing find group path elements: {find_id}")
-                    matching_input_groups.append(candidate_groups)
+                # If the candidate group contains all the path elements from the find group (and maybe more)
+                print(f"Found matching single group containing find group path elements: {find_id}")
+                matching_input_groups.append([input_group])
             else:
                 # Additional check: see if the shapes are similar by comparing structure more loosely
-                # This is especially important when dealing with relative vs absolute coordinates
                 find_shape_signature = create_shape_signature(normalized_find_paths)
                 candidate_shape_signature = create_shape_signature(normalized_candidate_paths)
                 
                 if find_shape_signature == candidate_shape_signature:
+                    print(f"Found matching single group based on shape signature for {find_id}")
+                    matching_input_groups.append([input_group])
+        
+        # If no single group matches, try sequences of consecutive groups (original approach)
+        if not matching_input_groups and len(find_subgroups) > 1:
+            for i in range(len(input_groups)):
+                # Check if we have enough remaining groups to match the find pattern
+                if i + len(find_subgroups) > len(input_groups):
+                    continue
+                    
+                # Get a sequence of input groups to compare
+                candidate_groups = input_groups[i:i+len(find_subgroups)]
+                
+                # Extract path elements from these candidate groups
+                candidate_path_elements = []
+                for group in candidate_groups:
+                    candidate_path_elements.extend(extract_path_elements(group))
+                
+                if not candidate_path_elements:
+                    continue
+                    
+                # Normalize path elements in these candidate groups
+                normalized_candidate_paths = [normalize_path_content(path_elem) for path_elem in candidate_path_elements]
+                normalized_candidate_paths_set = set(normalized_candidate_paths)
+                
+                # Check if the candidate groups have the same path elements as the find group
+                if normalized_find_paths_set == normalized_candidate_paths_set:
                     # Additional check: verify that the subgroup structure matches
+                    # Compare each subgroup in the find group with the corresponding candidate group
                     structure_matches = True
                     for j, find_subgroup in enumerate(find_subgroups):
                         if j < len(candidate_groups):
@@ -979,8 +977,47 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
                             break
                     
                     if structure_matches:
-                        print(f"Found matching sequence based on shape signature for {find_id}")
+                        print(f"Found matching sequence of {len(candidate_groups)} groups with same path elements and structure as {find_id}")
                         matching_input_groups.append(candidate_groups)
+                elif normalized_find_paths_set.issubset(normalized_candidate_paths_set):
+                    # If the candidate groups contain all the path elements from the find group (and maybe more)
+                    # Check if the subgroup structure matches
+                    structure_matches = True
+                    for j, find_subgroup in enumerate(find_subgroups):
+                        if j < len(candidate_groups):
+                            candidate_group = candidate_groups[j]
+                            if not groups_match_structure(find_subgroup, candidate_group):
+                                structure_matches = False
+                                break
+                        else:
+                            structure_matches = False
+                            break
+                    
+                    if structure_matches:
+                        print(f"Found matching sequence containing find group path elements: {find_id}")
+                        matching_input_groups.append(candidate_groups)
+                else:
+                    # Additional check: see if the shapes are similar by comparing structure more loosely
+                    # This is especially important when dealing with relative vs absolute coordinates
+                    find_shape_signature = create_shape_signature(normalized_find_paths)
+                    candidate_shape_signature = create_shape_signature(normalized_candidate_paths)
+                    
+                    if find_shape_signature == candidate_shape_signature:
+                        # Additional check: verify that the subgroup structure matches
+                        structure_matches = True
+                        for j, find_subgroup in enumerate(find_subgroups):
+                            if j < len(candidate_groups):
+                                candidate_group = candidate_groups[j]
+                                if not groups_match_structure(find_subgroup, candidate_group):
+                                    structure_matches = False
+                                    break
+                            else:
+                                structure_matches = False
+                                break
+                        
+                        if structure_matches:
+                            print(f"Found matching sequence based on shape signature for {find_id}")
+                            matching_input_groups.append(candidate_groups)
 
         # Add the matching groups to results
         for input_group_sequence in matching_input_groups:
