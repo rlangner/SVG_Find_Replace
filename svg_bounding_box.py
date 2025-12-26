@@ -241,51 +241,70 @@ def calculate_group_bbox(svg_root, group_id):
         if elem.get('id') == group_id:
             target_group = elem
             break
-    
+
     if target_group is None:
         return None
-    
+
+    # First, calculate the transform from the root to the target group (parent transforms)
+    root_to_target_transform = [1, 0, 0, 1, 0, 0]  # identity matrix
+    current = target_group
+    while current is not None and current != svg_root:
+        # Get transform of current element
+        elem_transform = current.get('transform')
+        if elem_transform:
+            elem_matrix = parse_transform(elem_transform)
+            # Pre-multiply to accumulate parent transforms (parent transforms applied first)
+            root_to_target_transform = multiply_matrices(elem_matrix, root_to_target_transform)
+
+        # Find parent element
+        parent = None
+        for p in svg_root.iter():
+            if current in list(p):
+                parent = p
+                break
+        current = parent
+
     # Collect all points from the group's content WITH ALL TRANSFORMS applied
     all_points = []
-    
+
     def collect_points_with_transforms(elem, accumulated_matrix):
         """Recursively collect all points from elements within the group with accumulated transforms."""
         # Get element's own transform
         elem_transform = elem.get('transform')
         elem_matrix = parse_transform(elem_transform) if elem_transform else [1, 0, 0, 1, 0, 0]
-        
+
         # Accumulate the current element's transform
         current_matrix = multiply_matrices(accumulated_matrix, elem_matrix)
-        
+
         # Get the element's bounding box points
         elem_bbox = get_element_bbox(elem)
-        
+
         if elem_bbox is not None:
             # Transform each point by the accumulated matrix (includes all parent transforms)
             for point in elem_bbox:
                 transformed_point = apply_transform_to_point(point, current_matrix)
                 all_points.append(transformed_point)
-        
+
         # Recursively process child elements with the accumulated matrix
         for child in elem:
             collect_points_with_transforms(child, current_matrix)
-    
-    # Start with identity matrix for the target group
-    identity_matrix = [1, 0, 0, 1, 0, 0]
-    collect_points_with_transforms(target_group, identity_matrix)
-    
+
+    # Start with the root-to-target transform for the target group
+    # This includes all transforms from ancestors of the target group
+    collect_points_with_transforms(target_group, root_to_target_transform)
+
     if not all_points:
         return None
-    
+
     # Calculate the final bounding box from all transformed points
     min_x = min(point[0] for point in all_points)
     max_x = max(point[0] for point in all_points)
     min_y = min(point[1] for point in all_points)
     max_y = max(point[1] for point in all_points)
-    
+
     width = max_x - min_x
     height = max_y - min_y
-    
+
     return {'width': width, 'height': height, 'min_x': min_x, 'min_y': min_y, 'max_x': max_x, 'max_y': max_y}
 
 def get_svg_element_sizes(svg_path):

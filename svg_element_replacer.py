@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element
 import re
 import copy
+import math
 from typing import Dict, List, Tuple, Optional
 import sys
 
@@ -84,37 +85,93 @@ def calculate_group_bounding_box(groups: List[Element]) -> Tuple[float, float, f
     return min_x, min_y, max_x, max_y
 
 
+def get_full_transform_chain_to_root(element: Element, svg_root: Element):
+    """
+    Get the full transform chain from an element up to the root to calculate the complete transformation matrix.
+    """
+    from svg_bounding_box import parse_transform, multiply_matrices
+
+    # Start with identity matrix
+    full_matrix = [1, 0, 0, 1, 0, 0]
+
+    # Traverse up the tree from the element to the root
+    current = element
+    while current is not None and current != svg_root:
+        # Get transform of current element
+        element_transform = current.get('transform')
+        if element_transform:
+            element_matrix = parse_transform(element_transform)
+            # Pre-multiply the element's transform to the accumulated matrix
+            # (parent transforms should be applied first)
+            full_matrix = multiply_matrices(element_matrix, full_matrix)
+
+        # Move to parent
+        parent = None
+        for p in svg_root.iter():
+            if current in list(p):
+                parent = p
+                break
+
+        current = parent
+
+    return full_matrix
+
+
 def calculate_group_center_improved(groups: List[Element], svg_root) -> Tuple[float, float]:
     """
     Calculate the center position of a sequence of groups using the improved bounding box calculation.
-    This function creates a temporary group containing the elements to pass to calculate_group_bbox.
+    This function now properly accounts for the original transform context of the groups.
     """
     import xml.etree.ElementTree as ET
     import uuid
-    
-    # Create a temporary SVG structure to pass to calculate_group_bbox
-    # We'll create a temporary group with a unique ID
+    from svg_bounding_box import calculate_group_bbox
+
+    # If we have just one group and we want to get its position in the original context,
+    # we should find its original position in the SVG hierarchy instead of creating a temporary group
+    if len(groups) == 1:
+        # For a single group, find its original position in the SVG by ID if it exists
+        original_group = groups[0]
+        original_id = original_group.get('id')
+
+        # Look for the original group in the SVG by its ID
+        found_original = None
+        if original_id:
+            for elem in svg_root.iter():
+                if elem.get('id') == original_id:
+                    found_original = elem
+                    break
+
+        if found_original:
+            # Calculate bounding box of the original group in its original context
+            bbox = calculate_group_bbox(svg_root, original_id)
+            if bbox:
+                center_x = (bbox['min_x'] + bbox['max_x']) / 2
+                center_y = (bbox['min_y'] + bbox['max_y']) / 2
+                return center_x, center_y
+
+    # For multiple groups or if the single group approach doesn't work,
+    # create a temporary group but with a better approach to maintain context
     temp_group = ET.Element('g')
     temp_id = f"temp_group_{uuid.uuid4().hex[:8]}"
     temp_group.set('id', temp_id)
-    
+
     # Add all the elements from the groups to the temporary group
     for group in groups:
         # Deep copy each element to avoid modifying the original
         temp_group.append(copy.deepcopy(group))
-    
+
     # Add the temporary group to the SVG root temporarily
     svg_root.append(temp_group)
-    
+
     try:
         # Calculate the bounding box of the temporary group
         bbox = calculate_group_bbox(svg_root, temp_id)
-        
+
         if bbox:
             # Calculate the center of the bounding box
             center_x = (bbox['min_x'] + bbox['max_x']) / 2
             center_y = (bbox['min_y'] + bbox['max_y']) / 2
-            
+
             return center_x, center_y
         else:
             # Fallback to the old method if bounding box calculation fails
@@ -563,32 +620,66 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             original_transform = replace_group.get('transform', '')
             
             # Calculate the target position (center of matched input groups)
-            target_center_x, target_center_y = calculate_group_center_improved(matched_input_groups, input_root)
-            
+            # For single group matches (from the flexible approach), we need to account for the transformation
+            # chain from the matched group up to the root to get the proper global position
+            if len(matched_input_groups) == 1:
+                # For single group matches, we need to get the actual global position considering all parent transforms
+                matched_group = matched_input_groups[0]
+
+                # Get the transform chain from the matched group to the root to calculate proper global position
+                transform_chain = []
+                current_element = matched_group
+                while current_element is not None and current_element != input_root:
+                    transform_attr = current_element.get('transform')
+                    if transform_attr:
+                        transform_chain.append(transform_attr)
+                    parent = find_parent(current_element, input_root)
+                    current_element = parent
+
+                # Apply transforms in reverse order (from parent to child)
+                transform_chain.reverse()
+
+                if transform_chain:
+                    print(f"DEBUG: Matched input group '{matched_group.get('id', 'no_id')}' has {len(transform_chain)} parent transforms: {' -> '.join(transform_chain)}")
+
+                # Calculate the center of the matched group using the improved method
+                # This should properly account for all transforms in the original hierarchy
+                target_center_x, target_center_y = calculate_group_center_improved(matched_input_groups, input_root)
+                target_pos = (target_center_x, target_center_y)
+                print(f"DEBUG: Matched input group '{matched_group.get('id', 'no_id')}' global position: ({target_center_x:.2f}, {target_center_y:.2f})")
+            else:
+                target_center_x, target_center_y = calculate_group_center_improved(matched_input_groups, input_root)
+                target_pos = (target_center_x, target_center_y)
+                print(f"DEBUG: Sequence of {len(matched_input_groups)} input groups center position: ({target_center_x:.2f}, {target_center_y:.2f})")
+
             # Calculate the rotation difference between the matched input groups and the lookup find group
             lookup_tree_rotation = ET.parse(lookup_svg_path)
             lookup_root_rotation = lookup_tree_rotation.getroot()
             rotation_difference = calculate_group_rotation(matched_input_groups, lookup_root_rotation, find_id)
-            
+
             # Calculate the original position of the replacement group in the lookup SVG
             # We need to determine where the replacement group would be positioned if placed without any transformation
             lookup_tree = ET.parse(lookup_svg_path)
             lookup_root = lookup_tree.getroot()
-            
+
             # Find the original replacement group in the lookup SVG to get its original position
             original_lookup_group = None
             for g in lookup_root.iter('{http://www.w3.org/2000/svg}g'):
                 if g.get('id') == replace_id:
                     original_lookup_group = g
                     break
-            
+
             if original_lookup_group is not None:
                 # Calculate the original position of the replacement group in the lookup SVG
                 original_replacement_center_x, original_replacement_center_y = calculate_group_center_improved([original_lookup_group], lookup_root)
+                original_pos = (original_replacement_center_x, original_replacement_center_y)
+                print(f"DEBUG: Replacement group '{replace_id}' original position in lookup: ({original_replacement_center_x:.2f}, {original_replacement_center_y:.2f})")
             else:
                 # Fallback: calculate from the copied replacement group
                 original_replacement_center_x, original_replacement_center_y = calculate_group_center_improved([replace_group], lookup_root)
-            
+                original_pos = (original_replacement_center_x, original_replacement_center_y)
+                print(f"DEBUG: Replacement group '{replace_id}' fallback position: ({original_replacement_center_x:.2f}, {original_replacement_center_y:.2f})")
+
             # For the positioning, we want to find where the original replacement element is located in the lookup SVG
             # The calculate_group_center_improved function returns the center of the element considering its transforms
             # So original_replacement_center_x, original_replacement_center_y is the actual position of the element in the lookup SVG
@@ -658,28 +749,55 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             
             # Apply the final transform to the replacement group
             replacement.set('transform', final_transform)
-            
+
+            # Calculate the final position of the replacement group after applying the transform
+            # This should match the target position
+            final_replacement_center_x = original_center_x + translation_x
+            final_replacement_center_y = original_center_y + translation_y
+
+            # Calculate the delta between where the replacement should be and where it will be
+            delta_x = abs(final_replacement_center_x - target_pos[0])
+            delta_y = abs(final_replacement_center_y - target_pos[1])
+            total_delta = math.sqrt(delta_x**2 + delta_y**2)
+
+            print(f"DEBUG: Replacement for '{find_id}' positioned at: ({final_replacement_center_x:.2f}, {final_replacement_center_y:.2f})")
+            print(f"DEBUG: Target position was: ({target_pos[0]:.2f}, {target_pos[1]:.2f})")
+            print(f"DEBUG: Position delta: X={delta_x:.2f}, Y={delta_y:.2f}, Total={total_delta:.2f}")
+
             # Find the parent of the first matched group to replace the entire sequence in the same location
             parent = None
             for p in input_root.iter():
                 if matched_input_groups[0] in list(p):
                     parent = p
                     break
-            
+
             if parent is not None:
                 # Find the index of the first matched group in its parent
                 index = list(parent).index(matched_input_groups[0])
-                
+
                 # Remove all matched groups in the sequence (in reverse order to maintain indices)
                 for matched_group in reversed(matched_input_groups[1:]):
                     if matched_group in parent:  # Check if still in parent before removing
                         parent.remove(matched_group)
-                
+
                 # Replace the first matched group with the replacement
                 parent[index] = replacement
             else:
                 # If no parent found, append to root (fallback)
                 input_root.append(replacement)
+
+            # Calculate the final position of the replacement in the output SVG
+            # This accounts for any parent transforms that may affect the final position
+            final_output_pos = calculate_group_center_improved([replacement], input_root)
+            final_output_x, final_output_y = final_output_pos
+
+            # Calculate the delta between the final output position and the target position
+            output_delta_x = abs(final_output_x - target_pos[0])
+            output_delta_y = abs(final_output_y - target_pos[1])
+            output_total_delta = math.sqrt(output_delta_x**2 + output_delta_y**2)
+
+            print(f"DEBUG: Final position in output.svg: ({final_output_x:.2f}, {final_output_y:.2f})")
+            print(f"DEBUG: Output position delta: X={output_delta_x:.2f}, Y={output_delta_y:.2f}, Total={output_total_delta:.2f}")
     
     # Write the output SVG
     print(f"Writing output to {output_svg_path}")

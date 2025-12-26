@@ -867,29 +867,47 @@ def normalize_group_content(group: Element) -> List[str]:
     return sorted(child_contents)  # Sort to make order-independent
 
 
+def extract_all_groups_with_depth(element: Element, depth: int = 0, max_depth: int = float('inf')) -> List[Tuple[Element, int]]:
+    """
+    Recursively extract all groups from an element with their depth level.
+    Returns a list of tuples: (group_element, depth_level)
+    """
+    groups = []
+    if element.tag.endswith('g'):
+        groups.append((element, depth))
+
+    # If we haven't reached max depth, continue searching children
+    if depth < max_depth:
+        for child in element:
+            groups.extend(extract_all_groups_with_depth(child, depth + 1, max_depth))
+
+    return groups
+
+
 def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -> List[Tuple[List[Element], str]]:
     """
     Match input groups to find groups based on visual content.
     This function compares path elements found in the subgroups of find_ groups
     to path elements in input.svg. Once path elements that look the same are found,
-    it looks for groups around the path element group that match the structure 
+    it looks for groups around the path element group that match the structure
     of the subgroups of the find_ group.
+    Now also supports nested group structures in the input SVG.
     Returns a list of tuples: (matched_input_groups, find_group_id)
     """
     matches = []
 
     for find_id, find_group in find_groups.items():
         print(f"Looking for match for find group {find_id}")
-        
+
         # Extract path elements from find group subgroups
         find_path_elements = []
         find_subgroups = []
         for subgroup in find_group:  # Direct children of the find group
             find_path_elements.extend(extract_path_elements(subgroup))
             find_subgroups.append(subgroup)
-        
+
         print(f"Find group {find_id} has {len(find_path_elements)} path elements in {len(find_subgroups)} subgroups")
-        
+
         if not find_path_elements:
             print(f"No path elements found in find group {find_id}, skipping...")
             continue
@@ -897,33 +915,34 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
         # Normalize all path elements in the find group for comparison
         normalized_find_paths = [normalize_path_content(path_elem) for path_elem in find_path_elements]
         normalized_find_paths_set = set(normalized_find_paths)
-        
+
         print(f"Normalized find path elements: {len(normalized_find_paths)} elements, {len(normalized_find_paths_set)} unique")
 
         # Look for input groups that contain path elements matching the find group
         matching_input_groups = []
-        
+
+        # First, try to match with the original approach (for backward compatibility)
         # Try to match sequences of consecutive groups that match the pattern
         for i in range(len(input_groups)):
             # Check if we have enough remaining groups to match the find pattern
             if i + len(find_subgroups) > len(input_groups):
                 continue
-                
+
             # Get a sequence of input groups to compare
             candidate_groups = input_groups[i:i+len(find_subgroups)]
-            
+
             # Extract path elements from these candidate groups
             candidate_path_elements = []
             for group in candidate_groups:
                 candidate_path_elements.extend(extract_path_elements(group))
-            
+
             if not candidate_path_elements:
                 continue
-                
+
             # Normalize path elements in these candidate groups
             normalized_candidate_paths = [normalize_path_content(path_elem) for path_elem in candidate_path_elements]
             normalized_candidate_paths_set = set(normalized_candidate_paths)
-            
+
             # Check if the candidate groups have the same path elements as the find group
             if normalized_find_paths_set == normalized_candidate_paths_set:
                 # Additional check: verify that the subgroup structure matches
@@ -938,7 +957,7 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
                     else:
                         structure_matches = False
                         break
-                
+
                 if structure_matches:
                     print(f"Found matching sequence of {len(candidate_groups)} groups with same path elements and structure as {find_id}")
                     matching_input_groups.append(candidate_groups)
@@ -955,7 +974,7 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
                     else:
                         structure_matches = False
                         break
-                
+
                 if structure_matches:
                     print(f"Found matching sequence containing find group path elements: {find_id}")
                     matching_input_groups.append(candidate_groups)
@@ -964,7 +983,7 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
                 # This is especially important when dealing with relative vs absolute coordinates
                 find_shape_signature = create_shape_signature(normalized_find_paths)
                 candidate_shape_signature = create_shape_signature(normalized_candidate_paths)
-                
+
                 if find_shape_signature == candidate_shape_signature:
                     # Additional check: verify that the subgroup structure matches
                     structure_matches = True
@@ -977,10 +996,47 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
                         else:
                             structure_matches = False
                             break
-                    
+
                     if structure_matches:
                         print(f"Found matching sequence based on shape signature for {find_id}")
                         matching_input_groups.append(candidate_groups)
+
+        # If no matches found with the original approach, try with a more flexible approach
+        # This handles cases where the structure is different but visual content is the same
+        if not matching_input_groups:
+            print(f"No matches found with original approach for {find_id}, trying flexible approach...")
+
+            # For each input group, extract ALL nested content and compare with the find group
+            for input_group in input_groups:
+                # Extract ALL path elements from this input group and its children (recursive)
+                all_input_path_elements = extract_path_elements(input_group)
+
+                if not all_input_path_elements:
+                    continue
+
+                # Normalize path elements from this single input group
+                normalized_input_paths = [normalize_path_content(path_elem) for path_elem in all_input_path_elements]
+                normalized_input_paths_set = set(normalized_input_paths)
+
+                # Check if this single input group contains the same path elements as the find group
+                if normalized_find_paths_set == normalized_input_paths_set:
+                    # For this flexible approach, we'll be more lenient with structure matching
+                    # since the visual content matches exactly
+                    print(f"Found single group match for {find_id} based on exact path elements match")
+                    matching_input_groups.append([input_group])
+                elif normalized_find_paths_set.issubset(normalized_input_paths_set):
+                    # If the input group contains all the path elements from the find group (and maybe more)
+                    # This could be a match if the input has extra elements
+                    print(f"Found single group containing find group path elements: {find_id}")
+                    matching_input_groups.append([input_group])
+                else:
+                    # Additional check: see if the shapes are similar by comparing structure more loosely
+                    find_shape_signature = create_shape_signature(normalized_find_paths)
+                    input_shape_signature = create_shape_signature(normalized_input_paths)
+
+                    if find_shape_signature == input_shape_signature:
+                        print(f"Found single group match based on shape signature for {find_id}")
+                        matching_input_groups.append([input_group])
 
         # Add the matching groups to results
         for input_group_sequence in matching_input_groups:
