@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg:svg xmlns:svg="http://www.w3.org/2000/svg" width="3000" height="2000">
+  <svg:g id="replace_001_1" transform="scale(1.5) translate(97.5,47.5)">
+    <svg:path d="M 15 15 L 55 15 L 55 55 L 15 55 Z" fill="yellow" />
+  </svg:g>
+  <svg:g id="replace_002_1" transform="scale(0.75,0.6) translate(1000.0,506.0)">
+    <svg:path d="M 0 40 Q 20 -10 40 40 Q 20 90 0 40 Z" fill="green" />
+  </svg:g>
+</svg:svg>
