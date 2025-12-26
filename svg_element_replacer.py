@@ -640,7 +640,10 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             
             # Calculate the target position (center of matched input groups)
             target_center_x, target_center_y = calculate_group_center_improved(matched_input_groups, input_root)
-            
+
+            # Print debug info for found element
+            print(f"DEBUG: Found element {find_id} with global center at ({target_center_x:.3f}, {target_center_y:.3f})")
+
             # Calculate the size of the matched groups in the input SVG
             input_width, input_height = calculate_group_size(matched_input_groups, input_root)
             
@@ -685,9 +688,115 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             scaled_original_center_x = original_replacement_center_x * scale_x
             scaled_original_center_y = original_replacement_center_y * scale_y
             
-            # Calculate the translation to move the scaled original center to the target center
-            translation_x = target_center_x - scaled_original_center_x
-            translation_y = target_center_y - scaled_original_center_y
+            # Calculate the combined transform from root to the parent of the matched element
+            # This includes all transforms that affect the coordinate system
+            from svg_bounding_box import parse_transform, apply_transform_to_point, multiply_matrices
+
+            # Calculate the combined transform matrix from all ancestors
+            combined_matrix = [1, 0, 0, 1, 0, 0]  # Identity matrix
+
+            # Find the parent of the matched group first
+            parent_element = None
+            for p in input_root.iter():
+                if matched_input_groups[0] in list(p):
+                    parent_element = p
+                    break
+
+            # If we found the parent, find all ancestors of the parent up to the root
+            current = parent_element
+            ancestors = []
+            while current != input_root and current is not None:
+                temp_parent = None
+                for p in input_root.iter():
+                    if current in list(p):
+                        temp_parent = p
+                        break
+                if temp_parent is None or temp_parent == input_root:
+                    break
+                ancestors.append(temp_parent)
+                current = temp_parent
+
+            # Process transforms from root to the parent (in the correct order)
+            ancestors.reverse()  # Now it's from root to the parent
+            for ancestor in ancestors:
+                transform_attr = ancestor.get('transform')
+                if transform_attr:
+                    transform_matrix = parse_transform(transform_attr)
+                    combined_matrix = multiply_matrices(combined_matrix, transform_matrix)
+
+            # If the immediate parent has a transform, include it too
+            if parent_element is not None:
+                parent_transform_attr = parent_element.get('transform')
+                if parent_transform_attr:
+                    parent_transform_matrix = parse_transform(parent_transform_attr)
+                    combined_matrix = multiply_matrices(combined_matrix, parent_transform_matrix)
+
+            # Calculate the combined transform from root to the parent of the matched element
+            # This includes all transforms that affect the coordinate system
+            from svg_bounding_box import parse_transform, apply_transform_to_point, multiply_matrices
+
+            # Calculate the combined transform matrix from all ancestors
+            combined_matrix = [1, 0, 0, 1, 0, 0]  # Identity matrix
+
+            # Find the parent of the matched group first
+            parent_element = None
+            for p in input_root.iter():
+                if matched_input_groups[0] in list(p):
+                    parent_element = p
+                    break
+
+            # If we found the parent, find all ancestors of the parent up to the root
+            current = parent_element
+            ancestors = []
+            while current != input_root and current is not None:
+                temp_parent = None
+                for p in input_root.iter():
+                    if current in list(p):
+                        temp_parent = p
+                        break
+                if temp_parent is None or temp_parent == input_root:
+                    break
+                ancestors.append(temp_parent)
+                current = temp_parent
+
+            # Process transforms from root to the parent (in the correct order)
+            ancestors.reverse()  # Now it's from root to the parent
+            for ancestor in ancestors:
+                transform_attr = ancestor.get('transform')
+                if transform_attr:
+                    transform_matrix = parse_transform(transform_attr)
+                    combined_matrix = multiply_matrices(combined_matrix, transform_matrix)
+
+            # If the immediate parent has a transform, include it too
+            if parent_element is not None:
+                parent_transform_attr = parent_element.get('transform')
+                if parent_transform_attr:
+                    parent_transform_matrix = parse_transform(parent_transform_attr)
+                    combined_matrix = multiply_matrices(combined_matrix, parent_transform_matrix)
+
+            # Calculate the inverse of the combined transform to find local coordinates
+            a, b, c, d, e, f = combined_matrix
+            det = a * d - b * c
+            if abs(det) > 1e-10:  # Avoid division by zero
+                # Calculate inverse matrix
+                inv_a = d / det
+                inv_b = -b / det
+                inv_c = -c / det
+                inv_d = a / det
+                inv_e = (c * f - d * e) / det
+                inv_f = (b * e - a * f) / det
+
+                # Calculate where the replacement should be positioned in the local coordinate system
+                # so that after all parent transforms are applied, it ends up at the target position
+                local_x, local_y = apply_transform_to_point((target_center_x, target_center_y), [inv_a, inv_b, inv_c, inv_d, inv_e, inv_f])
+
+                # Calculate the translation needed to position the scaled replacement at the local position
+                translation_x = local_x - (original_replacement_center_x * scale_x)
+                translation_y = local_y - (original_replacement_center_y * scale_y)
+            else:
+                # If determinant is near zero, use original calculation
+                translation_x = target_center_x - (original_replacement_center_x * scale_x)
+                translation_y = target_center_y - (original_replacement_center_y * scale_y)
 
             # Create the final transform with scale, rotation, and translation
             # Build the transform in the correct order: scale, then rotate (around center), then translate
@@ -695,7 +804,7 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
 
             # Apply scaling first
             if abs(scale_x - 1.0) > 0.001 or abs(scale_y - 1.0) > 0.001:
-                # Apply scaling - note that if there are internal transforms, 
+                # Apply scaling - note that if there are internal transforms,
                 # we need to be careful about the order
                 if abs(scale_x - scale_y) < 0.001:  # Uniform scaling
                     transform_parts.append(f"scale({scale_x})")
@@ -711,7 +820,7 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
                 # Apply rotation around the original center point (before scaling and translation)
                 transform_parts.append(f"rotate({rotation_difference} {original_replacement_center_x} {original_replacement_center_y})")
 
-            # Finally, apply the translation to move to the target position
+            # Apply the corrected translation
             transform_parts.append(f"translate({translation_x},{translation_y})")
 
             final_transform = " ".join(transform_parts)
@@ -729,17 +838,30 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             if parent is not None:
                 # Find the index of the first matched group in its parent
                 index = list(parent).index(matched_input_groups[0])
-                
+
                 # Remove all matched groups in the sequence (in reverse order to maintain indices)
                 for matched_group in reversed(matched_input_groups[1:]):
                     if matched_group in parent:  # Check if still in parent before removing
                         parent.remove(matched_group)
-                
-                # Replace the first matched group with the replacement
-                parent[index] = replacement
+
+                # Remove the first matched group
+                parent.remove(matched_input_groups[0])
+
+                # Place the replacement element back in the same parent
+                parent.insert(index, replacement)
+
+                # Print debug info for the replaced element
+                replacement_center_x, replacement_center_y = calculate_group_center_improved([replacement], input_root)
+                print(f"DEBUG: Replaced element {replace_id}_{occurrence_counts[find_id]} with global center at ({replacement_center_x:.3f}, {replacement_center_y:.3f})")
+                print(f"DEBUG: Position difference for {replace_id}_{occurrence_counts[find_id]}: Δx={replacement_center_x - target_center_x:.3f}, Δy={replacement_center_y - target_center_y:.3f}")
             else:
                 # If no parent found, append to root (fallback)
                 input_root.append(replacement)
+
+                # Print debug info for the replaced element
+                replacement_center_x, replacement_center_y = calculate_group_center_improved([replacement], input_root)
+                print(f"DEBUG: Replaced element {replace_id}_{occurrence_counts[find_id]} with global center at ({replacement_center_x:.3f}, {replacement_center_y:.3f})")
+                print(f"DEBUG: Position difference for {replace_id}_{occurrence_counts[find_id]}: Δx={replacement_center_x - target_center_x:.3f}, Δy={replacement_center_y - target_center_y:.3f}")
     
     # Write the output SVG
     print(f"Writing output to {output_svg_path}")
