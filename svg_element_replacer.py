@@ -117,7 +117,7 @@ def get_full_transform_chain_to_root(element: Element, svg_root: Element):
     return full_matrix
 
 
-def calculate_group_center_improved(groups: List[Element], svg_root) -> Tuple[float, float]:
+def calculate_group_center_improved(groups, svg_root) -> Tuple[float, float]:
     """
     Calculate the center position of a sequence of groups using the improved bounding box calculation.
     This function now properly accounts for the original transform context of the groups.
@@ -126,62 +126,102 @@ def calculate_group_center_improved(groups: List[Element], svg_root) -> Tuple[fl
     import uuid
     from svg_bounding_box import calculate_group_bbox
 
-    # If we have just one group and we want to get its position in the original context,
-    # we should find its original position in the SVG hierarchy instead of creating a temporary group
-    if len(groups) == 1:
-        # For a single group, find its original position in the SVG by ID if it exists
-        original_group = groups[0]
-        original_id = original_group.get('id')
+    # Check if this is a subset match [parent_group, subset_elements] or a full group match [group1, group2, ...]
+    if len(groups) == 2 and isinstance(groups[1], (list, tuple)):
+        # This is a subset match: [parent_group, subset_elements]
+        # Calculate center based on the subset elements
+        subset_elements = groups[1]  # groups[0] is the parent group, groups[1] is the subset
 
-        # Look for the original group in the SVG by its ID
-        found_original = None
-        if original_id:
-            for elem in svg_root.iter():
-                if elem.get('id') == original_id:
-                    found_original = elem
-                    break
+        # Create a temporary group with the subset elements to calculate the center
+        temp_group = ET.Element('g')
+        temp_id = f"temp_group_{uuid.uuid4().hex[:8]}"
+        temp_group.set('id', temp_id)
 
-        if found_original:
-            # Calculate bounding box of the original group in its original context
-            bbox = calculate_group_bbox(svg_root, original_id)
+        # Add all the subset elements to the temporary group
+        for element in subset_elements:
+            # Deep copy each element to avoid modifying the original
+            temp_group.append(copy.deepcopy(element))
+
+        # Add the temporary group to the SVG root temporarily
+        svg_root.append(temp_group)
+
+        try:
+            # Calculate the bounding box of the temporary group
+            bbox = calculate_group_bbox(svg_root, temp_id)
+
             if bbox:
+                # Calculate the center of the bounding box
                 center_x = (bbox['min_x'] + bbox['max_x']) / 2
                 center_y = (bbox['min_y'] + bbox['max_y']) / 2
+
                 return center_x, center_y
+            else:
+                # Fallback to the old method if bounding box calculation fails
+                min_x, min_y, max_x, max_y = calculate_group_bounding_box(subset_elements)
+                center_x = (min_x + max_x) / 2
+                center_y = (min_y + max_y) / 2
+                return center_x, center_y
+        finally:
+            # Remove the temporary group from the root
+            svg_root.remove(temp_group)
+    else:
+        # This is a full group match: [group1, group2, ...]
+        # If we have just one group and we want to get its position in the original context,
+        # we should find its original position in the SVG hierarchy instead of creating a temporary group
+        if len(groups) == 1:
+            # For a single group, find its original position in the SVG by ID if it exists
+            original_group = groups[0]
+            original_id = original_group.get('id')
 
-    # For multiple groups or if the single group approach doesn't work,
-    # create a temporary group but with a better approach to maintain context
-    temp_group = ET.Element('g')
-    temp_id = f"temp_group_{uuid.uuid4().hex[:8]}"
-    temp_group.set('id', temp_id)
+            # Look for the original group in the SVG by its ID
+            found_original = None
+            if original_id:
+                for elem in svg_root.iter():
+                    if elem.get('id') == original_id:
+                        found_original = elem
+                        break
 
-    # Add all the elements from the groups to the temporary group
-    for group in groups:
-        # Deep copy each element to avoid modifying the original
-        temp_group.append(copy.deepcopy(group))
+            if found_original:
+                # Calculate bounding box of the original group in its original context
+                bbox = calculate_group_bbox(svg_root, original_id)
+                if bbox:
+                    center_x = (bbox['min_x'] + bbox['max_x']) / 2
+                    center_y = (bbox['min_y'] + bbox['max_y']) / 2
+                    return center_x, center_y
 
-    # Add the temporary group to the SVG root temporarily
-    svg_root.append(temp_group)
+        # For multiple groups or if the single group approach doesn't work,
+        # create a temporary group but with a better approach to maintain context
+        temp_group = ET.Element('g')
+        temp_id = f"temp_group_{uuid.uuid4().hex[:8]}"
+        temp_group.set('id', temp_id)
 
-    try:
-        # Calculate the bounding box of the temporary group
-        bbox = calculate_group_bbox(svg_root, temp_id)
+        # Add all the elements from the groups to the temporary group
+        for group in groups:
+            # Deep copy each element to avoid modifying the original
+            temp_group.append(copy.deepcopy(group))
 
-        if bbox:
-            # Calculate the center of the bounding box
-            center_x = (bbox['min_x'] + bbox['max_x']) / 2
-            center_y = (bbox['min_y'] + bbox['max_y']) / 2
+        # Add the temporary group to the SVG root temporarily
+        svg_root.append(temp_group)
 
-            return center_x, center_y
-        else:
-            # Fallback to the old method if bounding box calculation fails
-            min_x, min_y, max_x, max_y = calculate_group_bounding_box(groups)
-            center_x = (min_x + max_x) / 2
-            center_y = (min_y + max_y) / 2
-            return center_x, center_y
-    finally:
-        # Remove the temporary group from the root
-        svg_root.remove(temp_group)
+        try:
+            # Calculate the bounding box of the temporary group
+            bbox = calculate_group_bbox(svg_root, temp_id)
+
+            if bbox:
+                # Calculate the center of the bounding box
+                center_x = (bbox['min_x'] + bbox['max_x']) / 2
+                center_y = (bbox['min_y'] + bbox['max_y']) / 2
+
+                return center_x, center_y
+            else:
+                # Fallback to the old method if bounding box calculation fails
+                min_x, min_y, max_x, max_y = calculate_group_bounding_box(groups)
+                center_x = (min_x + max_x) / 2
+                center_y = (min_y + max_y) / 2
+                return center_x, center_y
+        finally:
+            # Remove the temporary group from the root
+            svg_root.remove(temp_group)
 
 
 def calculate_group_center(groups: List[Element]) -> Tuple[float, float]:
@@ -587,31 +627,52 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
     # Track which input groups have already been matched and removed
     used_groups = set()
     occurrence_counts = {}
-    
+
     for matched_input_groups, find_id in matches:
-        # Check if any of the matched groups have already been used
-        already_used = any(group in used_groups for group in matched_input_groups)
-        if already_used:
-            print(f"Skipping match for {find_id} - some groups already used by another match")
-            continue
-        
+        # Check if this is a subset match [parent_group, subset_elements] or a full group match [group1, group2, ...]
+        if len(matched_input_groups) == 2 and isinstance(matched_input_groups[1], (list, tuple)):
+            # This is a subset match: [parent_group, subset_elements]
+            parent_group = matched_input_groups[0]
+            subset_elements = matched_input_groups[1]
+
+            # Check if any of the subset elements have already been used
+            already_used = any(elem in used_groups for elem in subset_elements)
+            if already_used:
+                print(f"Skipping match for {find_id} - some elements already used by another match")
+                continue
+        else:
+            # This is a full group match: [group1, group2, ...]
+            # Check if any of the matched groups have already been used
+            already_used = any(group in used_groups for group in matched_input_groups)
+            if already_used:
+                print(f"Skipping match for {find_id} - some groups already used by another match")
+                continue
+
         # Get the corresponding replace group
         replace_id = find_id.replace('find_', 'replace_')
         if replace_id not in replace_groups:
             print(f"Warning: No replacement group found for {find_id} (expected {replace_id})")
             continue
-        
+
         replace_group = replace_groups[replace_id]
         print(f"Replacing groups matching {find_id} with {replace_id}")
-        
+
         if matched_input_groups:
-            # Mark these groups as used before processing
-            for group in matched_input_groups:
-                used_groups.add(group)
-            
+            # Mark these groups/elements as used before processing
+            if len(matched_input_groups) == 2 and isinstance(matched_input_groups[1], (list, tuple)):
+                # This is a subset match: add the subset elements to used_groups
+                parent_group = matched_input_groups[0]
+                subset_elements = matched_input_groups[1]
+                for elem in subset_elements:
+                    used_groups.add(elem)
+            else:
+                # This is a full group match: add the groups to used_groups
+                for group in matched_input_groups:
+                    used_groups.add(group)
+
             # Create a deep copy of the replacement group
             replacement = copy.deepcopy(replace_group)
-            
+
             # Generate a unique ID for this replacement instance
             occurrence_counts[find_id] = occurrence_counts.get(find_id, 0) + 1
             replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
@@ -764,27 +825,58 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             print(f"DEBUG: Target position was: ({target_pos[0]:.2f}, {target_pos[1]:.2f})")
             print(f"DEBUG: Position delta: X={delta_x:.2f}, Y={delta_y:.2f}, Total={total_delta:.2f}")
 
-            # Find the parent of the first matched group to replace the entire sequence in the same location
-            parent = None
-            for p in input_root.iter():
-                if matched_input_groups[0] in list(p):
-                    parent = p
-                    break
+            # Check if this is a subset match (where matched_input_groups contains parent and specific elements to replace)
+            # In the subset matching, the structure would be different, so we need to check the format
+            if len(matched_input_groups) == 2 and hasattr(matched_input_groups[1], '__iter__') and not isinstance(matched_input_groups[1], str):
+                # This is a subset match - matched_input_groups[0] is the parent group,
+                # and matched_input_groups[1] contains the specific elements to replace
+                parent_group = matched_input_groups[0]
+                elements_to_replace = list(matched_input_groups[1])  # Convert tuple to list
 
-            if parent is not None:
-                # Find the index of the first matched group in its parent
-                index = list(parent).index(matched_input_groups[0])
+                # Find the actual parent that contains these elements
+                actual_parent = None
+                for p in input_root.iter():
+                    # Check if all the elements to replace are direct children of this parent
+                    if all(elem in list(p) for elem in elements_to_replace):
+                        actual_parent = p
+                        break
 
-                # Remove all matched groups in the sequence (in reverse order to maintain indices)
-                for matched_group in reversed(matched_input_groups[1:]):
-                    if matched_group in parent:  # Check if still in parent before removing
-                        parent.remove(matched_group)
+                if actual_parent is not None:
+                    # Remove the specific elements that match the find pattern
+                    for elem in elements_to_replace:
+                        if elem in actual_parent:
+                            actual_parent.remove(elem)
 
-                # Replace the first matched group with the replacement
-                parent[index] = replacement
+                    # Add the replacement to the same parent
+                    actual_parent.append(replacement)
+                    print(f"DEBUG: Replaced subset elements in group '{actual_parent.get('id', 'no_id')}'")
+                else:
+                    # Fallback: if we can't find the specific parent, add to the root
+                    input_root.append(replacement)
+                    print(f"DEBUG: Subset replacement added to root (could not find parent)")
             else:
-                # If no parent found, append to root (fallback)
-                input_root.append(replacement)
+                # This is a full group replacement (original logic)
+                # Find the parent of the first matched group to replace the entire sequence in the same location
+                parent = None
+                for p in input_root.iter():
+                    if matched_input_groups[0] in list(p):
+                        parent = p
+                        break
+
+                if parent is not None:
+                    # Find the index of the first matched group in its parent
+                    index = list(parent).index(matched_input_groups[0])
+
+                    # Remove all matched groups in the sequence (in reverse order to maintain indices)
+                    for matched_group in reversed(matched_input_groups[1:]):
+                        if matched_group in parent:  # Check if still in parent before removing
+                            parent.remove(matched_group)
+
+                    # Replace the first matched group with the replacement
+                    parent[index] = replacement
+                else:
+                    # If no parent found, append to root (fallback)
+                    input_root.append(replacement)
 
             # Calculate the final position of the replacement in the output SVG
             # This accounts for any parent transforms that may affect the final position
