@@ -9,9 +9,7 @@ and replaces matching groups with corresponding replacement groups.
 
 import sys
 
-# Import the element matching and replacement functions
-from svg_pattern_matcher import find_pattern_matches, get_elements_combined_position
-from svg_element_matcher import extract_groups_from_svg
+# Import the replacement function
 from svg_element_replacer import replace_groups_in_svg
 
 
