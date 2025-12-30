@@ -77,9 +77,15 @@ def get_element_detailed_signature(element: Element) -> Dict:
         if stroke_width_match:
             stroke_width = stroke_width_match.group(1).strip()
 
+    # Extract base ID by removing:
+    # 1. Trailing digits (e.g., "HATCH1" -> "HATCH")
+    # 2. Hex suffixes like "---0xABCD" or " - 0xABCD" (e.g., "HATCH---0x3D44" -> "HATCH")
+    element_id = element.get('id', '')
+    id_base = re.sub(r'(\s*-+\s*0x[0-9A-Fa-f]+|\d+)$', '', element_id)
+
     signature = {
         'tag': element.tag.split('}')[-1] if '}' in element.tag else element.tag,
-        'id_base': re.sub(r'\d+$', '', element.get('id', '')),
+        'id_base': id_base,
         'fill': normalize_color(fill),
         'stroke': normalize_color(stroke),
         'stroke_width': stroke_width,
@@ -139,11 +145,9 @@ def match_all_patterns(find_group: Element, input_group: Element) -> List[List[E
                 match_found = False
                 break
 
-            # Check if stroke widths match (when both are specified)
-            if (find_sig['stroke_width'] != '1' and input_sig['stroke_width'] != '1' and
-                find_sig['stroke_width'] != input_sig['stroke_width']):
-                match_found = False
-                break
+            # Note: We intentionally do NOT check stroke-width to allow matching
+            # patterns across different SVG files that may have different stroke widths
+            # but the same visual structure (colors, element types, order)
 
         if match_found:
             # Validate ID bases match
