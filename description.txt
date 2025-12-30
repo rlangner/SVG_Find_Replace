@@ -1,0 +1,49 @@
+SVG Group Replacer Script - Description
+
+Overview:
+This script is an advanced SVG processing tool that finds and replaces groups of elements in SVG files based on visual similarity matching. It is designed to process SVG files and replace groups of elements according to a lookup mapping, particularly useful for batch processing SVG files where specific groups need to be replaced with alternative content.
+
+Core Functionality:
+1. The script takes three arguments: an input SVG file, a lookup SVG file, and an output SVG file.
+2. It parses both the input and lookup SVG files to extract groups of elements.
+3. The lookup SVG contains 'find' groups (e.g., find_001, find_003) and corresponding 'replace' groups (e.g., replace_001, replace_003).
+4. The script searches through the input SVG to find groups of elements that visually match the 'find' groups in the lookup SVG.
+5. When matches are found, it replaces the matched elements with the corresponding 'replace' groups, preserving positioning and transforms.
+
+Key Features:
+- Visual similarity matching using advanced comparison algorithms
+- Support for nested group structures and coordinate transformations
+- Accurate positioning of replacement elements based on original element locations
+- Handling of complex SVG elements (paths, rectangles, circles, ellipses, lines, polylines, polygons)
+- Matrix transformation support for complex positioning
+- Element signature creation for reliable matching
+- Subgroup matching within larger groups
+
+How It Works:
+1. Parsing Phase: The script parses both input and lookup SVG files, extracting all groups and organizing 'find' and 'replace' groups from the lookup file.
+
+2. Matching Phase: 
+   - The script compares visual content of groups using path element analysis, color normalization, coordinate normalization, and shape signature creation.
+   - It first attempts to match sequences of consecutive groups that match the subgroup structure of find groups.
+   - If no matches are found, it tries more flexible approaches, including matching single groups that contain the same visual elements as the find groups.
+
+3. Positioning Phase:
+   - The script calculates the global position of matched elements, accounting for all parent transforms and coordinate systems.
+   - It determines where the replacement should be positioned to match the original location of the matched elements.
+
+4. Replacement Phase:
+   - The corresponding replacement elements from the lookup SVG are positioned at the same location as the matched elements.
+   - When matching subsets of elements within a parent group, only those specific elements are replaced while leaving the rest of the parent group intact.
+   - Transformations are applied to ensure the replacement elements appear in the correct location and orientation.
+
+5. Output Phase: The modified SVG structure is written to the output file.
+
+Advanced Features:
+- Handles layered SVG structures with multiple levels of nested groups
+- Accounts for complex transform matrices and coordinate system changes
+- Provides detailed debugging output showing match positions and transformation calculations
+- Prevents overlapping matches to avoid replacing the same elements multiple times
+- Maintains original group structures while selectively replacing only matching sub-elements
+- Supports both exact and approximate visual matching for flexibility
+
+This tool is particularly useful for automated SVG template updates, batch processing of technical drawings, and replacing standardized components in SVG diagrams while preserving the overall document structure and layout.
