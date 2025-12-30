@@ -22,6 +22,12 @@ from svg_element_matcher import (
     calculate_group_bbox
 )
 
+# Import the pattern matching functions
+from svg_pattern_matcher import find_pattern_matches, get_elements_combined_position
+
+# Import the bounding box functions for matrix operations
+from svg_bounding_box import parse_transform, multiply_matrices
+
 
 def get_group_transform(group: Element) -> str:
     """
@@ -591,37 +597,35 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
     print("Loading input SVG...")
     input_tree = ET.parse(input_svg_path)
     input_root = input_tree.getroot()
-    
+
     print("Loading lookup SVG...")
     lookup_groups = extract_groups_from_svg(lookup_svg_path)
     find_groups = lookup_groups['find']
     replace_groups = lookup_groups['replace']
-    
+
     # Find all <g> elements in the input SVG (excluding those with IDs that are find/replace)
     all_input_groups = []
     for g in input_root.iter('{http://www.w3.org/2000/svg}g'):
         group_id = g.get('id')
         if not group_id or (not group_id.startswith('find_') and not group_id.startswith('replace_')):
             all_input_groups.append(g)
-    
+
     print(f"Found {len(all_input_groups)} groups in input SVG")
     print(f"Found {len(find_groups)} find groups in lookup SVG")
     print(f"Found {len(replace_groups)} replace groups in lookup SVG")
-    
-    # Find matches between input groups and find groups
-    matches = match_groups(all_input_groups, find_groups)
-    
-    print(f"Found {len(matches)} matches")
-    
-    # Sort matches to prioritize longer sequences over shorter ones to avoid overlapping matches
-    # This will help ensure larger patterns get priority over smaller ones that might be subsets
-    def match_priority(match_tuple):
-        matched_input_groups, find_id = match_tuple
-        # Priority based on the number of groups in the match (longer sequences first)
-        # and then by the find_id for consistent ordering
-        return (-len(matched_input_groups), find_id)
-    
-    matches.sort(key=match_priority)
+
+    # Find pattern matches between input groups and find groups
+    pattern_matches = find_pattern_matches(all_input_groups, find_groups)
+
+    print(f"Found {len(pattern_matches)} pattern matches")
+
+    # Convert pattern matches to the format expected by the rest of the function
+    # Each pattern match is (input_group, matched_elements, find_group_id)
+    # We need to convert this to the format: (matched_input_groups, find_id)
+    matches = []
+    for input_group, matched_elements, find_id in pattern_matches:
+        # For pattern matching, we have [input_group, matched_elements] structure
+        matches.append(([input_group, matched_elements], find_id))
     
     # Process each match, but avoid overlapping matches
     # Track which input groups have already been matched and removed
@@ -629,24 +633,15 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
     occurrence_counts = {}
 
     for matched_input_groups, find_id in matches:
-        # Check if this is a subset match [parent_group, subset_elements] or a full group match [group1, group2, ...]
-        if len(matched_input_groups) == 2 and isinstance(matched_input_groups[1], (list, tuple)):
-            # This is a subset match: [parent_group, subset_elements]
-            parent_group = matched_input_groups[0]
-            subset_elements = matched_input_groups[1]
+        # For pattern matching, we have [parent_group, matched_elements] structure
+        parent_group = matched_input_groups[0]
+        matched_elements = matched_input_groups[1]
 
-            # Check if any of the subset elements have already been used
-            already_used = any(elem in used_groups for elem in subset_elements)
-            if already_used:
-                print(f"Skipping match for {find_id} - some elements already used by another match")
-                continue
-        else:
-            # This is a full group match: [group1, group2, ...]
-            # Check if any of the matched groups have already been used
-            already_used = any(group in used_groups for group in matched_input_groups)
-            if already_used:
-                print(f"Skipping match for {find_id} - some groups already used by another match")
-                continue
+        # Check if any of the matched elements have already been used
+        already_used = any(elem in used_groups for elem in matched_elements)
+        if already_used:
+            print(f"Skipping match for {find_id} - some elements already used by another match")
+            continue
 
         # Get the corresponding replace group
         replace_id = find_id.replace('find_', 'replace_')
@@ -655,242 +650,245 @@ def replace_groups_in_svg(input_svg_path: str, lookup_svg_path: str, output_svg_
             continue
 
         replace_group = replace_groups[replace_id]
-        print(f"Replacing groups matching {find_id} with {replace_id}")
+        print(f"Replacing elements matching {find_id} with {replace_id}")
 
-        if matched_input_groups:
-            # Mark these groups/elements as used before processing
-            if len(matched_input_groups) == 2 and isinstance(matched_input_groups[1], (list, tuple)):
-                # This is a subset match: add the subset elements to used_groups
-                parent_group = matched_input_groups[0]
-                subset_elements = matched_input_groups[1]
-                for elem in subset_elements:
-                    used_groups.add(elem)
+        # Mark the matched elements as used before processing
+        for elem in matched_elements:
+            used_groups.add(elem)
+
+        # Create a deep copy of the replacement group
+        replacement = copy.deepcopy(replace_group)
+
+        # Generate a unique ID for this replacement instance
+        occurrence_counts[find_id] = occurrence_counts.get(find_id, 0) + 1
+        replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
+
+        # Calculate the target position (center of matched input elements)
+        # We need to calculate this in the parent's LOCAL coordinate system
+        # The matched elements are children of parent_group, so we calculate their center
+        # relative to the parent, not the global SVG root
+
+        # Calculate the center of the matched elements in the parent's local coordinate system
+        from svg_bounding_box import calculate_group_bbox
+
+        # Create a temporary group to hold the matched elements for bbox calculation
+        import uuid
+        temp_group = ET.Element('g')
+        temp_id = f"temp_matched_{uuid.uuid4().hex[:8]}"
+        temp_group.set('id', temp_id)
+
+        # Add copies of matched elements to temp group
+        for elem in matched_elements:
+            temp_group.append(copy.deepcopy(elem))
+
+        # Add temp group to parent (not root) to calculate in parent's coordinate system
+        parent_group.append(temp_group)
+
+        try:
+            # Calculate bbox in parent's coordinate system
+            # We need to pass the parent as the root for this calculation
+            bbox = calculate_group_bbox(parent_group, temp_id)
+
+            if bbox:
+                target_center_x = (bbox['min_x'] + bbox['max_x']) / 2
+                target_center_y = (bbox['min_y'] + bbox['max_y']) / 2
             else:
-                # This is a full group match: add the groups to used_groups
-                for group in matched_input_groups:
-                    used_groups.add(group)
+                # Fallback: calculate simple average of element positions
+                target_center_x = 0
+                target_center_y = 0
+                for elem in matched_elements:
+                    # Try to extract position from element
+                    if elem.tag.endswith('rect'):
+                        x = float(elem.get('x', 0))
+                        y = float(elem.get('y', 0))
+                        w = float(elem.get('width', 0))
+                        h = float(elem.get('height', 0))
+                        target_center_x += x + w/2
+                        target_center_y += y + h/2
+                    elif elem.tag.endswith('circle'):
+                        target_center_x += float(elem.get('cx', 0))
+                        target_center_y += float(elem.get('cy', 0))
+                target_center_x /= len(matched_elements)
+                target_center_y /= len(matched_elements)
+        finally:
+            # Remove temp group
+            parent_group.remove(temp_group)
 
-            # Create a deep copy of the replacement group
-            replacement = copy.deepcopy(replace_group)
+        print(f"DEBUG: Matched elements center position (local): ({target_center_x:.2f}, {target_center_y:.2f})")
 
-            # Generate a unique ID for this replacement instance
-            occurrence_counts[find_id] = occurrence_counts.get(find_id, 0) + 1
-            replacement.set('id', f"{replace_id}_{occurrence_counts[find_id]}")
-            
-            # Get the original transform of the replacement group
-            original_transform = replace_group.get('transform', '')
-            
-            # Calculate the target position (center of matched input groups)
-            # For single group matches (from the flexible approach), we need to account for the transformation
-            # chain from the matched group up to the root to get the proper global position
-            if len(matched_input_groups) == 1:
-                # For single group matches, we need to get the actual global position considering all parent transforms
-                matched_group = matched_input_groups[0]
+        # Get the parent group's transform to understand the coordinate system
+        parent_transform = parent_group.get('transform', '')
+        parent_matrix = parse_transform(parent_transform) if parent_transform else [1, 0, 0, 1, 0, 0]
+        parent_a, parent_b, parent_c, parent_d, parent_e, parent_f = parent_matrix
 
-                # Get the transform chain from the matched group to the root to calculate proper global position
-                transform_chain = []
-                current_element = matched_group
-                while current_element is not None and current_element != input_root:
-                    transform_attr = current_element.get('transform')
-                    if transform_attr:
-                        transform_chain.append(transform_attr)
-                    parent = find_parent(current_element, input_root)
-                    current_element = parent
+        # Extract the parent's scale (assuming uniform scaling for simplicity)
+        parent_scale_x = math.sqrt(parent_a * parent_a + parent_b * parent_b)
+        parent_scale_y = math.sqrt(parent_c * parent_c + parent_d * parent_d)
+        parent_scale = (parent_scale_x + parent_scale_y) / 2
 
-                # Apply transforms in reverse order (from parent to child)
-                transform_chain.reverse()
+        print(f"DEBUG: Parent transform: {parent_transform}")
+        print(f"DEBUG: Parent scale: {parent_scale:.6f}")
 
-                if transform_chain:
-                    print(f"DEBUG: Matched input group '{matched_group.get('id', 'no_id')}' has {len(transform_chain)} parent transforms: {' -> '.join(transform_chain)}")
+        # Calculate the original position of the replacement group in the lookup SVG
+        lookup_tree = ET.parse(lookup_svg_path)
+        lookup_root = lookup_tree.getroot()
 
-                # Calculate the center of the matched group using the improved method
-                # This should properly account for all transforms in the original hierarchy
-                target_center_x, target_center_y = calculate_group_center_improved(matched_input_groups, input_root)
-                target_pos = (target_center_x, target_center_y)
-                print(f"DEBUG: Matched input group '{matched_group.get('id', 'no_id')}' global position: ({target_center_x:.2f}, {target_center_y:.2f})")
-            else:
-                target_center_x, target_center_y = calculate_group_center_improved(matched_input_groups, input_root)
-                target_pos = (target_center_x, target_center_y)
-                print(f"DEBUG: Sequence of {len(matched_input_groups)} input groups center position: ({target_center_x:.2f}, {target_center_y:.2f})")
+        # Find the original replacement group in the lookup SVG to get its original position
+        original_lookup_group = None
+        for g in lookup_root.iter('{http://www.w3.org/2000/svg}g'):
+            if g.get('id') == replace_id:
+                original_lookup_group = g
+                break
 
-            # Calculate the rotation difference between the matched input groups and the lookup find group
-            lookup_tree_rotation = ET.parse(lookup_svg_path)
-            lookup_root_rotation = lookup_tree_rotation.getroot()
-            rotation_difference = calculate_group_rotation(matched_input_groups, lookup_root_rotation, find_id)
+        # Find the original find group in the lookup SVG to get its transform
+        original_find_group = None
+        for g in lookup_root.iter('{http://www.w3.org/2000/svg}g'):
+            if g.get('id') == find_id:
+                original_find_group = g
+                break
 
-            # Calculate the original position of the replacement group in the lookup SVG
-            # We need to determine where the replacement group would be positioned if placed without any transformation
-            lookup_tree = ET.parse(lookup_svg_path)
-            lookup_root = lookup_tree.getroot()
+        # Get the original transform of the replacement group to preserve its internal structure
+        original_transform = replace_group.get('transform', '')
 
-            # Find the original replacement group in the lookup SVG to get its original position
-            original_lookup_group = None
-            for g in lookup_root.iter('{http://www.w3.org/2000/svg}g'):
-                if g.get('id') == replace_id:
-                    original_lookup_group = g
-                    break
+        # Get the original transform of the find group
+        original_find_transform = original_find_group.get('transform', '') if original_find_group is not None else ''
 
-            if original_lookup_group is not None:
-                # Calculate the original position of the replacement group in the lookup SVG
-                original_replacement_center_x, original_replacement_center_y = calculate_group_center_improved([original_lookup_group], lookup_root)
-                original_pos = (original_replacement_center_x, original_replacement_center_y)
-                print(f"DEBUG: Replacement group '{replace_id}' original position in lookup: ({original_replacement_center_x:.2f}, {original_replacement_center_y:.2f})")
-            else:
-                # Fallback: calculate from the copied replacement group
-                original_replacement_center_x, original_replacement_center_y = calculate_group_center_improved([replace_group], lookup_root)
-                original_pos = (original_replacement_center_x, original_replacement_center_y)
-                print(f"DEBUG: Replacement group '{replace_id}' fallback position: ({original_replacement_center_x:.2f}, {original_replacement_center_y:.2f})")
+        # Calculate the center of the replacement group's CHILDREN in the group's local coordinate system
+        # This is the center before the replacement group's transform is applied
+        if original_lookup_group is not None:
+            # Create a temporary group with the children (without the parent's transform)
+            temp_group2 = ET.Element('g')
+            temp_id2 = f"temp_replace_children_{uuid.uuid4().hex[:8]}"
+            temp_group2.set('id', temp_id2)
 
-            # For the positioning, we want to find where the original replacement element is located in the lookup SVG
-            # The calculate_group_center_improved function returns the center of the element considering its transforms
-            # So original_replacement_center_x, original_replacement_center_y is the actual position of the element in the lookup SVG
-            original_center_x = original_replacement_center_x
-            original_center_y = original_replacement_center_y
-            
-            # Calculate the translation needed to move the replacement to the target position
-            translation_x = target_center_x - original_center_x
-            translation_y = target_center_y - original_center_y
-            
-            # Create the final transform
-            if original_transform:
-                # Combine the original transform with the positioning transform and rotation
-                # For matrix transforms, we need to apply the translation after the original matrix
-                if original_transform.strip().startswith('matrix'):
-                    # Decompose the matrix and apply translation
-                    matrix_match = re.match(r'matrix\(([^)]+)\)', original_transform.strip())
-                    if matrix_match:
-                        # Safely convert matrix values to floats
-                        values = []
-                        for x in matrix_match.group(1).split(','):
-                            try:
-                                values.append(float(x.strip()))
-                            except ValueError:
-                                # Skip invalid values
-                                continue
-                        if len(values) == 6:
-                            a, b, c, d, e, f = values
-                            # Apply rotation to the matrix if there's a rotation difference
-                            if rotation_difference != 0:
-                                # Apply rotation to the existing matrix
-                                new_values = apply_rotation_to_matrix([a, b, c, d, e, f], rotation_difference, original_center_x, original_center_y)
-                                # Apply the translation to the rotated matrix components
-                                final_e = new_values[4] + translation_x
-                                final_f = new_values[5] + translation_y
-                                final_transform = f"matrix({new_values[0]},{new_values[1]},{new_values[2]},{new_values[3]},{final_e},{final_f})"
-                            else:
-                                # Apply the translation to the existing translation components
-                                final_e = e + translation_x
-                                final_f = f + translation_y
-                                final_transform = f"matrix({a},{b},{c},{d},{final_e},{final_f})"
-                        else:
-                            # If matrix format is wrong, combine with translate
-                            if rotation_difference != 0:
-                                final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
-                            else:
-                                final_transform = f"{original_transform} translate({translation_x},{translation_y})"
-                    else:
-                        # If matrix format is wrong, combine with translate
-                        if rotation_difference != 0:
-                            final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
-                        else:
-                            final_transform = f"{original_transform} translate({translation_x},{translation_y})"
+            # Copy all children of the replacement group
+            for child in original_lookup_group:
+                temp_group2.append(copy.deepcopy(child))
+
+            # Add to lookup root temporarily (without any transform)
+            lookup_root.append(temp_group2)
+
+            try:
+                # Calculate bbox of the children
+                bbox2 = calculate_group_bbox(lookup_root, temp_id2)
+                if bbox2:
+                    # The center of the children in their local coordinate system
+                    original_replacement_center_x = (bbox2['min_x'] + bbox2['max_x']) / 2
+                    original_replacement_center_y = (bbox2['min_y'] + bbox2['max_y']) / 2
                 else:
-                    # For other transforms, append rotation and translation
-                    if rotation_difference != 0:
-                        # Calculate the center point around which to rotate (use the original replacement center)
-                        final_transform = f"{original_transform} rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
-                    else:
-                        final_transform = f"{original_transform} translate({translation_x},{translation_y})"
-            else:
-                # No original transform, apply rotation and then translation
-                if rotation_difference != 0:
-                    final_transform = f"rotate({rotation_difference},{original_center_x},{original_center_y}) translate({translation_x},{translation_y})"
-                else:
-                    final_transform = f"translate({translation_x},{translation_y})"
-            
-            # Apply the final transform to the replacement group
-            replacement.set('transform', final_transform)
+                    original_replacement_center_x = 0
+                    original_replacement_center_y = 0
+            finally:
+                lookup_root.remove(temp_group2)
+        else:
+            original_replacement_center_x = 0
+            original_replacement_center_y = 0
 
-            # Calculate the final position of the replacement group after applying the transform
-            # This should match the target position
-            final_replacement_center_x = original_center_x + translation_x
-            final_replacement_center_y = original_center_y + translation_y
+        print(f"DEBUG: Replacement children center (local coords): ({original_replacement_center_x:.2f}, {original_replacement_center_y:.2f})")
 
-            # Calculate the delta between where the replacement should be and where it will be
-            delta_x = abs(final_replacement_center_x - target_pos[0])
-            delta_y = abs(final_replacement_center_y - target_pos[1])
-            total_delta = math.sqrt(delta_x**2 + delta_y**2)
+        # Calculate the scale factor needed to compensate for the parent's scale
+        # The replacement should maintain its original size from lookup.svg
+        # So if the parent has scale 0.01, we need to apply scale 100 to compensate (100 * 0.01 = 1.0)
+        if parent_scale > 0:
+            compensation_scale = 1.0 / parent_scale
+        else:
+            compensation_scale = 1.0
 
-            print(f"DEBUG: Replacement for '{find_id}' positioned at: ({final_replacement_center_x:.2f}, {final_replacement_center_y:.2f})")
-            print(f"DEBUG: Target position was: ({target_pos[0]:.2f}, {target_pos[1]:.2f})")
-            print(f"DEBUG: Position delta: X={delta_x:.2f}, Y={delta_y:.2f}, Total={total_delta:.2f}")
+        print(f"DEBUG: Compensation scale: {compensation_scale:.6f}")
 
-            # Check if this is a subset match (where matched_input_groups contains parent and specific elements to replace)
-            # In the subset matching, the structure would be different, so we need to check the format
-            if len(matched_input_groups) == 2 and hasattr(matched_input_groups[1], '__iter__') and not isinstance(matched_input_groups[1], str):
-                # This is a subset match - matched_input_groups[0] is the parent group,
-                # and matched_input_groups[1] contains the specific elements to replace
-                parent_group = matched_input_groups[0]
-                elements_to_replace = list(matched_input_groups[1])  # Convert tuple to list
+        # The target_center_x and target_center_y are already in the parent's local coordinate system
+        # No need to convert - we calculated them relative to the parent
+        local_x = target_center_x
+        local_y = target_center_y
 
-                # Find the actual parent that contains these elements
-                actual_parent = None
-                for p in input_root.iter():
-                    # Check if all the elements to replace are direct children of this parent
-                    if all(elem in list(p) for elem in elements_to_replace):
-                        actual_parent = p
-                        break
+        print(f"DEBUG: Target position in parent's local coordinates: ({local_x:.2f}, {local_y:.2f})")
 
-                if actual_parent is not None:
-                    # Remove the specific elements that match the find pattern
-                    for elem in elements_to_replace:
-                        if elem in actual_parent:
-                            actual_parent.remove(elem)
+        # Now calculate the position offset for the replacement
+        # The replacement group's transform should position it at local_x, local_y
+        # and scale it by compensation_scale to maintain its original size
 
-                    # Add the replacement to the same parent
-                    actual_parent.append(replacement)
-                    print(f"DEBUG: Replaced subset elements in group '{actual_parent.get('id', 'no_id')}'")
-                else:
-                    # Fallback: if we can't find the specific parent, add to the root
-                    input_root.append(replacement)
-                    print(f"DEBUG: Subset replacement added to root (could not find parent)")
-            else:
-                # This is a full group replacement (original logic)
-                # Find the parent of the first matched group to replace the entire sequence in the same location
-                parent = None
-                for p in input_root.iter():
-                    if matched_input_groups[0] in list(p):
-                        parent = p
-                        break
+        # Parse the original transform from the replacement group in lookup.svg
+        if original_transform:
+            original_matrix = parse_transform(original_transform)
+            orig_a, orig_b, orig_c, orig_d, orig_tx, orig_ty = original_matrix
 
-                if parent is not None:
-                    # Find the index of the first matched group in its parent
-                    index = list(parent).index(matched_input_groups[0])
+            # Get the rotation from the find pattern's transform
+            find_rotation = get_transform_rotation_angle(original_find_transform)
 
-                    # Remove all matched groups in the sequence (in reverse order to maintain indices)
-                    for matched_group in reversed(matched_input_groups[1:]):
-                        if matched_group in parent:  # Check if still in parent before removing
-                            parent.remove(matched_group)
+            # Get the rotation from the replace pattern's transform
+            replace_rotation = get_transform_rotation_angle(original_transform)
 
-                    # Replace the first matched group with the replacement
-                    parent[index] = replacement
-                else:
-                    # If no parent found, append to root (fallback)
-                    input_root.append(replacement)
+            # Calculate the net rotation (replace rotation minus find rotation)
+            # This accounts for the fact that the find pattern's rotation is part of how
+            # the pattern is defined, not part of what we want to preserve in the output
+            net_rotation = replace_rotation - find_rotation
 
-            # Calculate the final position of the replacement in the output SVG
-            # This accounts for any parent transforms that may affect the final position
-            final_output_pos = calculate_group_center_improved([replacement], input_root)
-            final_output_x, final_output_y = final_output_pos
+            # Calculate the scale magnitude from the original transform
+            orig_scale_x = math.sqrt(orig_a * orig_a + orig_b * orig_b)
+            orig_scale_y = math.sqrt(orig_c * orig_c + orig_d * orig_d)
+            orig_scale = (orig_scale_x + orig_scale_y) / 2
 
-            # Calculate the delta between the final output position and the target position
-            output_delta_x = abs(final_output_x - target_pos[0])
-            output_delta_y = abs(final_output_y - target_pos[1])
-            output_total_delta = math.sqrt(output_delta_x**2 + output_delta_y**2)
+            # Create a new transform with the net rotation and scaled magnitude
+            # Convert net rotation to radians
+            net_rotation_rad = math.radians(net_rotation)
+            cos_angle = math.cos(net_rotation_rad)
+            sin_angle = math.sin(net_rotation_rad)
 
-            print(f"DEBUG: Final position in output.svg: ({final_output_x:.2f}, {final_output_y:.2f})")
-            print(f"DEBUG: Output position delta: X={output_delta_x:.2f}, Y={output_delta_y:.2f}, Total={output_total_delta:.2f}")
-    
+            # Create the rotation matrix with the scaled magnitude
+            # For a rotation matrix: [cos -sin; sin cos] scaled by the magnitude
+            total_scale = orig_scale * compensation_scale
+            final_a = total_scale * cos_angle
+            final_b = total_scale * sin_angle
+            final_c = total_scale * (-sin_angle)
+            final_d = total_scale * cos_angle
+
+            # Handle negative scales (flips)
+            # Check if the original transform had a flip (negative determinant)
+            orig_det = orig_a * orig_d - orig_b * orig_c
+            if orig_det < 0:
+                # Flip the y-axis
+                final_c = -final_c
+                final_d = -final_d
+
+            # Calculate the translation to position the center correctly
+            # The center of the replacement content (in the group's local coords) is at
+            # (original_replacement_center_x, original_replacement_center_y)
+            # After applying the transform matrix [final_a, final_b, final_c, final_d, final_tx, final_ty]
+            # to this center point, we get:
+            # x' = final_a * cx + final_c * cy + final_tx
+            # y' = final_b * cx + final_d * cy + final_ty
+            # We want (x', y') = (local_x, local_y), so:
+            # local_x = final_a * cx + final_c * cy + final_tx
+            # local_y = final_b * cx + final_d * cy + final_ty
+            # Solving for final_tx and final_ty:
+            # final_tx = local_x - final_a * cx - final_c * cy
+            # final_ty = local_y - final_b * cx - final_d * cy
+
+            final_tx = local_x - final_a * original_replacement_center_x - final_c * original_replacement_center_y
+            final_ty = local_y - final_b * original_replacement_center_x - final_d * original_replacement_center_y
+
+            final_transform = f"matrix({final_a},{final_b},{final_c},{final_d},{final_tx},{final_ty})"
+        else:
+            # If there's no original transform, just apply the compensation scale
+            final_tx = local_x - compensation_scale * original_replacement_center_x
+            final_ty = local_y - compensation_scale * original_replacement_center_y
+
+            final_transform = f"matrix({compensation_scale},0,0,{compensation_scale},{final_tx},{final_ty})"
+
+        print(f"DEBUG: Final transform: {final_transform}")
+
+        # Apply the final transform to the replacement group
+        replacement.set('transform', final_transform)
+
+        # Remove the matched elements from the parent group
+        for elem in matched_elements:
+            if elem in parent_group:
+                parent_group.remove(elem)
+
+        # Add the replacement to the same parent group
+        parent_group.append(replacement)
+        print(f"DEBUG: Replaced {len(matched_elements)} elements in group '{parent_group.get('id', 'no_id')}' with '{replace_id}'")
+
     # Write the output SVG
     print(f"Writing output to {output_svg_path}")
     input_tree.write(output_svg_path, encoding='unicode', xml_declaration=True)

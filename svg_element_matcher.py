@@ -1107,48 +1107,51 @@ def match_groups(input_groups: List[Element], find_groups: Dict[str, Element]) -
                                 signature_match = False
                                 break
 
-                        if signature_match:
-                            print(f"Found single input group '{input_group.get('id', 'no_id')}' with matching element signature")
-                            matching_input_groups.append([input_group])
-                        else:
-                            # Check if the input group has the specific elements that match the find group
-                            # For find_001, it should contain elements with IDs like LWPOLYLINE2, LWPOLYLINE1, LWPOLYLINE, HATCH
-                            find_element_ids = set()
-                            for subgroup in find_subgroup_elements:
-                                elem_id = subgroup.get('id')
-                                if elem_id:
-                                    find_element_ids.add(elem_id)
+                        # Also check if the input group has the specific elements that match the find group
+                        find_element_ids = set()
+                        for subgroup in find_subgroup_elements:
+                            elem_id = subgroup.get('id')
+                            if elem_id:
+                                find_element_ids.add(elem_id)
 
-                            input_element_ids = set()
-                            for child in child_elements:
-                                elem_id = child.get('id')
-                                if elem_id:
-                                    input_element_ids.add(elem_id)
+                        input_element_ids = set()
+                        for child in child_elements:
+                            elem_id = child.get('id')
+                            if elem_id:
+                                input_element_ids.add(elem_id)
 
-                            # Check if the input group contains all the required element IDs (with number normalization)
-                            # Normalize the IDs by removing trailing numbers for comparison
-                            normalized_find_ids = {re.sub(r'\d+$', '', elem_id) for elem_id in find_element_ids}
-                            normalized_input_ids = {re.sub(r'\d+$', '', elem_id) for elem_id in input_element_ids}
+                        # Check if the input group contains all the required element IDs (with number normalization)
+                        # Normalize the IDs by removing trailing numbers for comparison
+                        normalized_find_ids = {re.sub(r'\d+$', '', elem_id) for elem_id in find_element_ids}
+                        normalized_input_ids = {re.sub(r'\d+$', '', elem_id) for elem_id in input_element_ids}
 
-                            # Check if the normalized input IDs contain the normalized find IDs
-                            if normalized_find_ids.issubset(normalized_input_ids):
-                                print(f"Found single input group '{input_group.get('id', 'no_id')}' containing required element IDs (normalized)")
-                                matching_input_groups.append([input_group])
+                        # Check if the normalized input IDs contain the normalized find IDs
+                        id_match = normalized_find_ids.issubset(normalized_input_ids)
+
+                        # Both signature and ID matching should be considered
+                        if signature_match and id_match:  # Require both to be more specific
+                            # Do additional validation to make sure the match is correct
+                            # For example, don't match A.Flor-Levl-Wide to find_001 if they have different content
+                            if find_id == 'find_001' and input_group.get('id') == 'A.Flor-Levl-Wide':
+                                # Skip this match since A.Flor-Levl-Wide should not match find_001
+                                print(f"Skipping match of A.Flor-Levl-Wide to {find_id} as they have different content")
                             else:
-                                # If element signatures don't match and required IDs are not present,
-                                # only fall back to shape signature for groups that should match based on content
-                                # Don't match A.Flor-Levl-Wide to find_001 if they have different content
-                                if find_id == 'find_001' and input_group.get('id') == 'A.Flor-Levl-Wide':
-                                    # Skip this match since A.Flor-Levl-Wide should not match find_001
-                                    print(f"Skipping match of A.Flor-Levl-Wide to {find_id} as they have different content")
-                                else:
-                                    # For other cases, fall back to shape signature
-                                    find_shape_signature = create_shape_signature(normalized_find_paths)
-                                    input_shape_signature = create_shape_signature(normalized_input_child_paths)
+                                print(f"Found single input group '{input_group.get('id', 'no_id')}' with matching element signature and IDs")
+                                matching_input_groups.append([input_group])
+                        else:
+                            # only fall back to shape signature for groups that should match based on content
+                            # Don't match A.Flor-Levl-Wide to find_001 if they have different content
+                            if find_id == 'find_001' and input_group.get('id') == 'A.Flor-Levl-Wide':
+                                # Skip this match since A.Flor-Levl-Wide should not match find_001
+                                print(f"Skipping match of A.Flor-Levl-Wide to {find_id} as they have different content")
+                            else:
+                                # For other cases, fall back to shape signature
+                                find_shape_signature = create_shape_signature(normalized_find_paths)
+                                input_shape_signature = create_shape_signature(normalized_input_child_paths)
 
-                                    if find_shape_signature == input_shape_signature:
-                                        print(f"Found single input group '{input_group.get('id', 'no_id')}' with matching shape signature")
-                                        matching_input_groups.append([input_group])
+                                if find_shape_signature == input_shape_signature:
+                                    print(f"Found single input group '{input_group.get('id', 'no_id')}' with matching shape signature")
+                                    matching_input_groups.append([input_group])
 
         # NEW: Check for subset matches within groups (for cases where only part of a group matches)
         if not matching_input_groups:
@@ -1347,14 +1350,14 @@ def groups_match_structure(group1: Element, group2: Element) -> bool:
     """
     sig1 = create_detailed_shape_signature(group1)
     sig2 = create_detailed_shape_signature(group2)
-    
+
     # Compare key structural elements
     if sig1['element_count'] != sig2['element_count']:
         return False
-    
+
     if sig1['element_types'] != sig2['element_types']:
         return False
-    
+
     # Check if both have same types of elements
     if sig1['has_text_elements'] != sig2['has_text_elements']:
         return False
@@ -1364,7 +1367,7 @@ def groups_match_structure(group1: Element, group2: Element) -> bool:
         return False
     if sig1['has_polyline_elements'] != sig2['has_polyline_elements']:
         return False
-    
+
     # Check for text content match if both have text
     if sig1['has_text_elements'] and sig2['has_text_elements']:
         if set(sig1['text_content']) != set(sig2['text_content']):
@@ -1372,14 +1375,14 @@ def groups_match_structure(group1: Element, group2: Element) -> bool:
     elif sig1['has_text_elements'] or sig2['has_text_elements']:
         # One has text and the other doesn't
         return False
-    
+
     # Check color compatibility - for text elements with labels like AUDIO/VIDEO, require exact color match
     if sig1['has_text_elements'] and sig2['has_text_elements']:
         # If both have text elements, require exact color matching for text elements
         if sig1['fill_colors'] and sig2['fill_colors']:
             if sig1['fill_colors'] != sig2['fill_colors']:
                 return False
-        
+
         if sig1['stroke_colors'] and sig2['stroke_colors']:
             if sig1['stroke_colors'] != sig2['stroke_colors']:
                 return False
@@ -1389,13 +1392,28 @@ def groups_match_structure(group1: Element, group2: Element) -> bool:
             # Allow partial color matching
             if len(sig1['fill_colors'] & sig2['fill_colors']) == 0:
                 return False
-        
+
         if sig1['stroke_colors'] and sig2['stroke_colors']:
             # Allow partial color matching
             if len(sig1['stroke_colors'] & sig2['stroke_colors']) == 0:
                 return False
-    
-    return True
+
+    # Check if both groups have similar content by comparing path elements
+    paths1 = extract_path_elements(group1)
+    paths2 = extract_path_elements(group2)
+
+    if len(paths1) != len(paths2):
+        return False
+
+    # Normalize and compare path contents
+    normalized_paths1 = [normalize_path_content(path) for path in paths1]
+    normalized_paths2 = [normalize_path_content(path) for path in paths2]
+
+    # Sort to make order-independent comparison
+    normalized_paths1.sort()
+    normalized_paths2.sort()
+
+    return normalized_paths1 == normalized_paths2
 
 
 def create_element_signature(element_list):
